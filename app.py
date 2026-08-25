@@ -920,7 +920,7 @@ The **Gender** and **Miscellaneous** labels remain the weakest categories, so th
         from src.common import prepare_data
         bundle = get_model(MODELS[st.session_state.sel_model])
         with st.spinner("Running the model over the test set..."):
-            X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
+            X_train, X_val, X_test, y_train, y_val, y_test, labels = prepare_data(DATA_DIR, verbose=False)
             P = _label_probs(bundle["pipeline"], list(X_test))
             pred = (P >= float(bundle.get("threshold", DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)))).astype(int)
         cols = st.columns(3)
