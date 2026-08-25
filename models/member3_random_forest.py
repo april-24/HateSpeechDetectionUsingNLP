@@ -56,7 +56,7 @@ def build_pipeline():
         ("tfidf", TfidfVectorizer(max_features=8000, ngram_range=(1, 1),
                                   min_df=3, sublinear_tf=True)),
         ("clf", OneVsRestClassifier(RandomForestClassifier(
-            n_estimators=120, max_depth=45, min_samples_leaf=3,
+            n_estimators=60, max_depth=45, min_samples_leaf=3,
             n_jobs=-1, class_weight="balanced", random_state=42))),
     ])
 

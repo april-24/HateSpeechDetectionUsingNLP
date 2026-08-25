@@ -1,4 +1,4 @@
-model,accuracy,subset_accuracy,hamming_loss,precision_micro,recall_micro,f1_micro,precision_macro,recall_macro,f1_macro,precision_weighted,recall_weighted,f1_weighted,train_time_sec,predict_time_sec,threshold,validation_micro_f1
-Logistic Regression,0.8249,0.3342,0.1751,0.6541,0.7578,0.7021,0.6241,0.7412,0.6754,0.6716,0.7578,0.7099,18.435,0.7115,0.44,0.7051
-Linear SVM,0.8184,0.3282,0.1816,0.6514,0.717,0.6826,0.6171,0.6852,0.6484,0.663,0.717,0.6881,11.7,0.7323,0.48,0.6869
-Random Forest,0.8166,0.3041,0.1834,0.632,0.7823,0.6992,0.6085,0.7734,0.6772,0.6552,0.7823,0.7095,7.232,0.6365,0.46,0.7001
+model,accuracy,subset_accuracy,hamming_loss,precision_micro,recall_micro,f1_micro,precision_macro,recall_macro,f1_macro,precision_weighted,recall_weighted,f1_weighted,train_time_sec,predict_time_sec,threshold,validation_micro_f1,cv_splits
+Linear SVM,0.8235,0.3421,0.1765,0.6586,0.7307,0.6928,0.6222,0.6999,0.6578,0.6699,0.7307,0.6981,11.45,0.3595,0.48,0.6785,2
+Logistic Regression,0.8332,0.3608,0.1668,0.6781,0.7379,0.7067,0.6444,0.7263,0.6807,0.6948,0.7379,0.7133,8.264,0.3764,0.48,0.6987,2
+Random Forest,0.8092,0.2951,0.1908,0.6168,0.7911,0.6931,0.5981,0.7874,0.6736,0.6491,0.7911,0.7073,2.276,0.1797,0.46,0.6956,2

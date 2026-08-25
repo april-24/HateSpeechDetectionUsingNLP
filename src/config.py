@@ -29,7 +29,7 @@ MODEL_FILES = {
 }
 
 # Per-model default detection thresholds. NOT arbitrary - each was found by
-# selecting thresholds on the validation set and then freezing them before final test evaluation
+# selecting thresholds by cross-validation within the 80% training data and then freezing them before final test evaluation
 # that maximizes micro-F1 for THAT model (verified against the exact trained
 # models currently in results/ - re-run this sweep any time a model is
 # retrained, since the right threshold shifts if the model itself changes).
@@ -41,12 +41,12 @@ MODEL_FILES = {
 # probability, even when equally correct. Sharing one threshold penalizes
 # some models far more than others; measured impact of forcing a shared 0.60
 # on the models currently shipped in results/:
-#   Logistic Regression : validation F1 0.7051 at threshold 0.44
-#   Linear SVM           : validation F1 0.6869 at threshold 0.48
-#   Random Forest        : validation F1 0.7001 at threshold 0.46
+#   Logistic Regression : 2-fold CV OOF micro-F1 0.6987 at threshold 0.48
+#   Linear SVM           : 2-fold CV OOF micro-F1 0.6785 at threshold 0.48
+#   Random Forest        : 2-fold CV OOF micro-F1 0.6956 at threshold 0.46
 DEFAULT_THRESHOLDS = {
     # Updated automatically after leakage-safe validation calibration.
-    "Logistic Regression": 0.44,
+    "Logistic Regression": 0.48,
     "Linear SVM": 0.48,
     "Random Forest": 0.46,
 }

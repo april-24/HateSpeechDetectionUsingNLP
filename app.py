@@ -278,7 +278,7 @@ def page_controls(show_model=True, show_threshold=True, key_prefix=""):
                 help=f"Lower = flags more comments (higher recall). Higher = "
                      f"stricter (higher precision). This model's evidence-based "
                      f"default is {model_default:.2f} — it's pre-selected when "
-                     f"you pick this model. Official reported metrics use the fixed validation-selected threshold for this model.")
+                     f"you pick this model. Official reported metrics use the fixed cross-validation-selected threshold for this model.")
     st.write("")
 
 
@@ -891,11 +891,7 @@ elif page == "Model Evaluation":
 
     with st.expander("ℹ️ Why does each model use a different detection threshold?"):
         st.markdown("""
-The thresholds used by the deployed models were selected **only on the validation split** using validation micro-F1. The final test set was kept untouched until the thresholds were fixed. The selected values are:
-
-- **Logistic Regression: 0.44** (validation micro-F1 0.7051)
-- **Linear SVM: 0.48** (validation micro-F1 0.6869)
-- **Random Forest: 0.46** (validation micro-F1 0.7001)
+The thresholds used by the deployed models were selected **only through cross-validation inside the 80% training data** using out-of-fold micro-F1. The final 20% test set was kept untouched until the thresholds were fixed. The deployed model files store these frozen thresholds.
 
 The thresholds are model-specific because Logistic Regression, Linear SVM and Random Forest produce scores on different scales. The deployed application stores the selected threshold with each model and uses the same fixed threshold during prediction.
 
@@ -920,7 +916,7 @@ The **Gender** and **Miscellaneous** labels remain the weakest categories, so th
         from src.common import prepare_data
         bundle = get_model(MODELS[st.session_state.sel_model])
         with st.spinner("Running the model over the test set..."):
-            X_train, X_val, X_test, y_train, y_val, y_test, labels = prepare_data(DATA_DIR, verbose=False)
+            X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
             P = _label_probs(bundle["pipeline"], list(X_test))
             pred = (P >= float(bundle.get("threshold", DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)))).astype(int)
         cols = st.columns(3)

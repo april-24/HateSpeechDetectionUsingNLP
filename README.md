@@ -104,26 +104,26 @@ without an API key — the app always labels demo data as such.
 
 ---
 
-## Results (untouched 20% final test set, model-specific validation-selected threshold)
+## Results (untouched 20% final test set, model-specific cross-validation-selected threshold)
 
 | Model | Per-label Accuracy | Micro-F1 | Macro-F1 | Subset Acc. | Hamming Loss | Train Time | Predict Time |
 |-------|:------------------:|:--------:|:--------:|:-----------:|:------------:|:----------:|:------------:|
-| Logistic Regression | **0.8249** | **0.7021** | 0.6754 | **0.3342** | 0.1751 | 18.44s | 0.71s |
-| Linear SVM | 0.8184 | 0.6826 | 0.6484 | 0.3282 | 0.1816 | 11.70s | 0.73s |
-| Random Forest | 0.8166 | 0.6992 | **0.6772** | 0.3041 | 0.1834 | **7.23s** | **0.64s** |
+| Logistic Regression | **0.8332** | **0.7067** | 0.6807 | **0.3608** | 0.1668 | 8.26s | 0.38s |
+| Linear SVM | 0.8235 | 0.6928 | 0.6578 | 0.3421 | 0.1765 | 11.45s | 0.36s |
+| Random Forest | 0.8092 | 0.6931 | **0.6736** | 0.2951 | 0.1908 | **2.28s** | **0.18s** |
 
 See `results/model_scores.csv` for the full metric set (precision/recall/F1
 in micro, macro, *and* weighted averaging).
 
 ### Per-model detection thresholds
 
-Thresholds are selected **only on the validation split** using validation micro-F1 and then frozen before the final test evaluation. The deployed models use:
+Thresholds are selected **only through 2-fold cross-validation inside the 80% training split** using out-of-fold micro-F1 and then frozen before the final test evaluation. The deployed models use:
 
-| Model | Validation threshold | Validation Micro-F1 | Final-test Micro-F1 |
+| Model | CV threshold | 2-Fold CV OOF Micro-F1 | Final-test Micro-F1 |
 |-------|:-------------------:|:-------------------:|:-------------------:|
-| Logistic Regression | **0.44** | 0.7051 | **0.7021** |
-| Linear SVM | 0.48 | 0.6869 | 0.6826 |
-| Random Forest | 0.46 | 0.7001 | 0.6992 |
+| Logistic Regression | **0.48** | 0.6987 | **0.7067** |
+| Linear SVM | 0.48 | 0.6785 | 0.6928 |
+| Random Forest | 0.46 | 0.6956 | 0.6931 |
 
 The final test set is not used for threshold selection or model tuning.
 
@@ -326,7 +326,7 @@ have time left before the deadline — roughly ordered by effort:
   scope it carefully against your remaining time.
 - **Threshold tuning per label, not just globally.** Right now one threshold
   applies to all 6 categories. Tuning a separate optimal threshold per
-  category (maximizing F1 per label on a validation split) is a legitimate
+  category (maximizing F1 per label on a cross-validation inside the training split) is a legitimate
   technique and would likely raise macro-F1 measurably.
 - **Targeted data collection for weak categories.** Gender and Miscellaneous
   have the lowest F1 across all models because they have the fewest training
@@ -360,6 +360,6 @@ have time left before the deadline — roughly ordered by effort:
 
 
 ## Evaluation protocol (revised)
-The benchmark uses a leakage-safe 60/20/20 train/validation/final-test split. TF-IDF vectorisers are fitted only on the training partition. Model-specific decision thresholds are selected using validation micro-F1 and then frozen before the final test evaluation. The final test set is not used for threshold selection or model tuning.
+The benchmark uses a leakage-safe 80/20 train/final-test split with cross-validation inside the training set. TF-IDF vectorisers are fitted only on the training partition. Model-specific decision thresholds are selected using validation micro-F1 and then frozen before the final test evaluation. The final test set is not used for threshold selection or model tuning.
 
 The system uses HateXplain-derived labels. The prototype is best described as multi-label hate/offensive-content and target-community detection. The six outputs are an adapted abusive indicator plus five target-community indicators.
