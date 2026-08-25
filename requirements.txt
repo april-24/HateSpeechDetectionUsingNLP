@@ -1,0 +1,19 @@
+# Core
+pandas
+numpy
+scikit-learn
+matplotlib
+joblib
+
+# NLP preprocessing
+nltk
+
+# Web application
+streamlit
+
+# Visualization
+wordcloud
+
+# Optional - only needed if you use the crawler tools (see crawler/CRAWLING_GUIDE.md)
+# praw               # for crawler/reddit_crawler.py
+# beautifulsoup4     # for crawler/generic_crawler.py

@@ -1,0 +1,978 @@
+"""
+CyberShield - Multi-Model Harmful-Content Detection System
+=========================================================
+Streamlit application. Run from the project root:
+
+    streamlit run app.py
+
+Pages (top navigation bar): Home | Dataset Statistics | Data Preprocessing |
+       Hate/Offensive Content Detection | Model Evaluation
+"""
+
+import os
+import re
+import time
+import numpy as np
+import pandas as pd
+import streamlit as st
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from src.config import LABELS, pretty, SCORES_CSV, DATA_DIR, DEFAULT_THRESHOLDS
+from src.predictor import (available_models, load_model, predict,
+                           explain, highlight_html, _label_probs)
+from src.preprocessing import clean_text, clean_text_steps
+from src import social
+
+st.set_page_config(page_title="CyberShield", page_icon="🛡️", layout="wide")
+
+DEFAULT_THRESHOLD = 0.50
+PAGES = ["Home", "Dataset Statistics", "Data Preprocessing",
+         "Hate/Offensive Content Detection", "Model Evaluation"]
+
+MODEL_INFO = {
+    "Logistic Regression": {
+        "feature_method": "TF-IDF (unigrams + bigrams, 30,000 features)",
+        "algorithm_type": "Linear classifier (One-vs-Rest, one per label)",
+        "note": "Fast fitted probabilities and relatively interpretable coefficients.",
+    },
+    "Linear SVM": {
+        "feature_method": "TF-IDF (unigrams + bigrams, 30,000 features)",
+        "algorithm_type": "Maximum-margin linear classifier (One-vs-Rest)",
+        "note": "Strong on high-dimensional sparse text; no native probability output.",
+    },
+    "Random Forest": {
+        "feature_method": "TF-IDF (unigrams, 8,000 features)",
+        "algorithm_type": "Ensemble of decision trees (One-vs-Rest)",
+        "note": "Captures non-linear word combinations; probability scores run "
+               "more conservative than the other models' (a known property of "
+               "tree ensembles on sparse text) - its own lower default "
+               "threshold compensates for this.",
+    },
+}
+
+# Minimal, website-style top navigation: plain text links, not big colored
+# buttons. Colors deliberately use currentColor/theme variables rather than
+# hardcoded hex values, so the nav stays readable in both Streamlit's light
+# and dark themes (hardcoded dark-grey text was invisible on the dark theme).
+NAVBAR_CSS = """
+<style>
+div[data-testid="stHorizontalBlock"] div.stButton > button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text-color, inherit) !important;
+    opacity: 0.75;
+    font-size: 15px !important;
+    padding: 6px 10px !important;
+    width: auto !important;
+}
+div[data-testid="stHorizontalBlock"] div.stButton > button:hover {
+    opacity: 1 !important;
+    text-decoration: underline !important;
+}
+div[data-testid="stHorizontalBlock"] div.stButton > button p {
+    font-size: 15px !important;
+    color: inherit !important;
+}
+</style>
+"""
+
+
+# ============================================================== helpers
+@st.cache_resource(show_spinner=False)
+def get_model(path):
+    return load_model(path)
+
+
+@st.cache_data(show_spinner=False)
+def get_dataset():
+    from src.data_loader import load_dataset
+    df, text_col, labels = load_dataset(DATA_DIR, verbose=False)
+    return df, text_col, labels
+
+
+def analyze_many(bundle, texts, threshold):
+    cleaned = [clean_text(t) for t in texts]
+    P = _label_probs(bundle["pipeline"], cleaned)
+    labels = bundle["labels"]
+    rows = []
+    for i, t in enumerate(texts):
+        probs = {l: float(P[i][j]) for j, l in enumerate(labels)}
+        flagged = [l for l in labels if probs[l] >= threshold]
+        top_score = max(probs.values())
+        # Confidence always reflects certainty in the VERDICT SHOWN, in both
+        # directions - if flagged, higher = more sure the comment matches the adapted harmful-content labels (the
+        # raw top score already means this). If clean, higher = more sure
+        # it's clean, i.e. how far the top score sits below the threshold
+        # (1 - top_score) - NOT the raw top score itself, which would
+        # misleadingly look like low confidence for an obviously clean
+        # comment (e.g. a 5% top score is very confidently clean, not
+        # "5% confident").
+        confidence = top_score if flagged else (1 - top_score)
+        rows.append({
+            "Comment": t,
+            "Harmful Content": "YES" if flagged else "NO",
+            "Categories": ", ".join(pretty(l) for l in flagged) or "-",
+            "Confidence": round(confidence, 3),
+            **{pretty(l): round(probs[l], 3) for l in labels},
+        })
+    return pd.DataFrame(rows)
+
+
+
+def suggested_action(res):
+    if not res["is_flagged"]:
+        return ("✅ **No action needed.** This comment doesn't cross the "
+                "detection threshold. If the conversation continues, it may "
+                "be worth a quick re-check later, especially if the tone shifts.")
+    top_conf = max(res["probs"].values())
+    cats = [pretty(l) for l in res["flagged"] if l != "abusive"]
+    lines = []
+    if top_conf >= 0.80:
+        lines.append("⚠️ **High confidence detection** — this is worth acting on.")
+    else:
+        lines.append("🟡 **Moderate confidence** — have a human double-check "
+                     "before acting, since the model isn't fully certain.")
+    lines.append("**Suggested next steps:**")
+    lines.append("- Save or screenshot the comment as evidence before it can "
+                 "be edited or deleted.")
+    lines.append("- Most platforms have a built-in **report** option for "
+                 "harassment or hate speech — consider using it.")
+    if cats:
+        lines.append(f"- This appears to target **{', '.join(cats)}** — if "
+                     "it's part of a repeated pattern against the same "
+                     "person, consider escalating to a moderator, teacher, "
+                     "or the platform's trust & safety team.")
+    lines.append("- If it includes a direct threat of violence, treat it "
+                 "seriously and contact local authorities.")
+    lines.append("- In Malaysia, online harassment can also be reported to "
+                 "the **Malaysian Communications and Multimedia Commission "
+                 "(MCMC)** under the Online Safety Act 2025.")
+    lines.append("\n_This is general guidance, not legal advice. For "
+                 "situations involving real danger to someone, contact the "
+                 "appropriate authorities directly._")
+    return "\n\n".join(lines)
+
+
+def batch_suggestion(df):
+    n = len(df)
+    n_bad = int((df["Harmful Content"] == "YES").sum())
+    if n == 0:
+        return ""
+    rate = n_bad / n
+    if n_bad == 0:
+        return "✅ **No harmful-content label crossed the threshold in this batch.** No action needed."
+    msg = f"⚠️ **{n_bad} of {n} comments ({rate:.0%}) were flagged.**\n\n"
+    if rate >= 0.3:
+        msg += ("This is a high proportion — consider reviewing the source "
+               "(video, thread, or file) more closely, and if it's an "
+               "ongoing conversation, consider flagging it to a moderator "
+               "or platform trust & safety team before it escalates.")
+    else:
+        msg += ("Review the flagged rows individually before taking action "
+               "— sort by the **Confidence** column to prioritise the most "
+               "serious ones first.")
+    msg += "\n\nKeep evidence (screenshots/exports) of anything you plan to report."
+    return msg
+
+
+def result_card(res, threshold, model_name, elapsed, original_text):
+    if res["is_flagged"]:
+        st.error("### ⚠️ HARMFUL CONTENT DETECTED")
+    else:
+        st.success("### ✅ No harmful-content label crossed the threshold")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Model used", model_name)
+    top_score = max(res["probs"].values())
+    # Same logic as analyze_many(): higher always means "more confident in
+    # the verdict shown", in both directions - not just the raw top score,
+    # which would misleadingly look like low confidence for a clearly clean
+    # comment (e.g. a 5% top score is very confidently clean, not "5% sure").
+    top_confidence = top_score if res["is_flagged"] else (1 - top_score)
+    c2.metric("Top confidence", f"{top_confidence:.1%}")
+    c3.metric("Processing time", f"{elapsed*1000:.0f} ms")
+
+    if res["flagged"]:
+        st.write("**Categories detected:**")
+        for l in res["flagged"]:
+            st.markdown(f"- **{pretty(l)}** — {res['probs'][l]:.1%} confidence")
+
+    st.write("**Confidence by category:**")
+    for l in LABELS:
+        p = res["probs"].get(l, 0.0)
+        st.write(f"{pretty(l)} — {p:.1%}")
+        st.progress(min(max(p, 0.0), 1.0))
+
+    if res["words"]:
+        st.write("**Influential words highlighted:**")
+        st.markdown(
+            f"<div style='padding:10px;border:1px solid rgba(128,128,128,0.4);border-radius:6px'>"
+            f"{highlight_html(original_text, res['words'])}</div>",
+            unsafe_allow_html=True)
+
+    st.info(f"**Why this result?** {explain(res)}")
+    st.caption(f"Decision threshold: {threshold:.2f}. A category is flagged "
+               f"when its score is at or above this value.")
+
+    st.markdown("#### 🧭 Suggested next step")
+    st.markdown(suggested_action(res))
+
+
+def summary_charts(df):
+    c1, c2 = st.columns(2)
+    with c1:
+        counts = df["Harmful Content"].value_counts()
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.pie(counts.values, labels=counts.index, autopct="%1.1f%%",
+               colors=["#c0392b" if i == "YES" else "#27ae60" for i in counts.index])
+        ax.set_title("Flagged vs Not Flagged")
+        st.pyplot(fig); plt.close(fig)
+    with c2:
+        cat_cols = [pretty(l) for l in LABELS]
+        flags = (df[cat_cols] >= 0.5).sum()
+        fig, ax = plt.subplots(figsize=(5, 4))
+        flags.plot(kind="barh", ax=ax, color="#c0392b")
+        ax.set_title("Detections per category")
+        st.pyplot(fig); plt.close(fig)
+
+
+def page_controls(show_model=True, show_threshold=True, key_prefix=""):
+    n = sum([show_model, show_threshold])
+    if n == 0:
+        return
+    cols = st.columns(n)
+    i = 0
+    models_list = list(MODELS.keys())
+    if show_model:
+        with cols[i]:
+            new_model = st.selectbox(
+                "Model", models_list,
+                index=models_list.index(st.session_state.sel_model),
+                key=f"{key_prefix}_model",
+                help="Choose which trained model performs the detection.")
+        i += 1
+        # If the model just changed, reset the sensitivity slider to THAT
+        # model's own evidence-based default (see DEFAULT_THRESHOLDS in
+        # src/config.py) rather than leaving whatever value the previous
+        # model was using. Each model's probability output has a different
+        # natural scale (e.g. Random Forest runs systematically lower than
+        # Logistic Regression even when equally correct) - sharing one
+        # threshold across models silently penalizes some far more than
+        # others.
+        if new_model != st.session_state.sel_model:
+            st.session_state.sel_model = new_model
+            new_default = DEFAULT_THRESHOLDS.get(new_model, 0.5)
+            st.session_state.sel_threshold = new_default
+            st.session_state[f"{key_prefix}_threshold"] = new_default
+        else:
+            st.session_state.sel_model = new_model
+    if show_threshold:
+        model_default = DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)
+        with cols[i]:
+            st.session_state.sel_threshold = st.slider(
+                "Detection sensitivity", 0.20, 0.90,
+                st.session_state.sel_threshold, 0.05, key=f"{key_prefix}_threshold",
+                help=f"Lower = flags more comments (higher recall). Higher = "
+                     f"stricter (higher precision). This model's evidence-based "
+                     f"default is {model_default:.2f} — it's pre-selected when "
+                     f"you pick this model. Official reported metrics use the fixed validation-selected threshold for this model.")
+    st.write("")
+
+
+def detect_quality_issues(df, text_col):
+    """Flag empty / too-short / repeated-character 'noisy' comments."""
+    texts = df[text_col].astype(str)
+    empty = texts.str.strip().eq("").sum()
+    too_short = (texts.str.split().apply(len) <= 2).sum()
+    # Uses Python's own re engine (via .apply) rather than pandas' vectorized
+    # .str.contains(regex=True) - some pandas/PyArrow string backends use the
+    # RE2 engine for that, which doesn't support backreferences like \1.
+    _repeated_re = re.compile(r"(.)\1{3,}")
+    repeated = texts.apply(lambda t: bool(_repeated_re.search(t))).sum()
+    duplicates = df.duplicated(subset=[text_col]).sum()
+    missing = df[text_col].isna().sum()
+    return {
+        "Missing (null) comments": int(missing),
+        "Empty / blank comments": int(empty),
+        "Extremely short (<=2 words)": int(too_short),
+        "Repeated-character spam (e.g. 'aaaaaa')": int(repeated),
+        "Duplicate comments": int(duplicates),
+    }
+
+
+def render_workflow_diagram():
+    stages = ["Raw Text", "Text Cleaning", "Tokenization", "Stopword\nRemoval",
+              "Lemmatization", "Feature\nExtraction\n(TF-IDF)", "Classification",
+              "Prediction"]
+    # Uses a semi-transparent grey overlay (rgba) instead of a hardcoded light
+    # background - a solid light background with inherited (theme) text color
+    # turned invisible (white-on-white) under Streamlit's dark theme. rgba
+    # overlays stay readable against both light and dark backgrounds, and
+    # text color is left to inherit rather than hardcoded.
+    boxes = "".join(
+        f"<div style='display:inline-block;padding:10px 14px;margin:4px;"
+        f"border:1px solid rgba(128,128,128,0.4);border-radius:8px;"
+        f"background:rgba(128,128,128,0.12);color:inherit;"
+        f"font-size:13px;text-align:center;white-space:pre-line'>{s}</div>"
+        + ("<span style='margin:0 4px;color:rgba(128,128,128,0.9)'>&#8594;</span>" if i < len(stages)-1 else "")
+        for i, s in enumerate(stages)
+    )
+    st.markdown(f"<div style='line-height:2.6'>{boxes}</div>", unsafe_allow_html=True)
+
+
+def render_wordcloud(text_series):
+    """Render a word cloud image; falls back to a note if the wordcloud
+    package isn't installed (pip install wordcloud)."""
+    try:
+        from wordcloud import WordCloud
+    except ImportError:
+        st.info("Install the `wordcloud` package to see this visualization: "
+               "`pip install wordcloud` (already listed in requirements.txt). "
+               "Showing the frequent-words bar chart below instead.")
+        return False
+    text = " ".join(text_series.astype(str))
+    wc = WordCloud(width=900, height=350, background_color="white",
+                   colormap="Reds", max_words=100).generate(text)
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.imshow(wc, interpolation="bilinear")
+    ax.axis("off")
+    st.pyplot(fig); plt.close(fig)
+    return True
+
+
+# ============================================================== top navbar
+st.markdown(NAVBAR_CSS, unsafe_allow_html=True)
+
+MODELS = available_models()
+if not MODELS:
+    st.error("No trained models found. Train them first:\n\n"
+             "```\npython -m models.member1_logistic_regression\n"
+             "python -m models.member2_svm\n"
+             "python -m models.member3_random_forest\n```")
+    st.stop()
+
+if "page" not in st.session_state:
+    st.session_state.page = "Home"
+if "sel_model" not in st.session_state:
+    st.session_state.sel_model = list(MODELS.keys())[0]
+if "sel_threshold" not in st.session_state:
+    st.session_state.sel_threshold = DEFAULT_THRESHOLDS.get(
+        st.session_state.sel_model, DEFAULT_THRESHOLD)
+
+logo_col, *nav_cols = st.columns([2.2] + [1] * len(PAGES))
+with logo_col:
+    st.markdown("**🛡️ CyberShield**")
+for i, p in enumerate(PAGES):
+    with nav_cols[i]:
+        label = f"**{p}**" if st.session_state.page == p else p
+        if st.button(label, key=f"nav_{p}"):
+            st.session_state.page = p
+            st.rerun()
+st.markdown("<hr style='margin-top:0'>", unsafe_allow_html=True)
+
+page = st.session_state.page
+
+
+# ============================================================== Home
+if page == "Home":
+    st.title("🛡️ CyberShield")
+    st.caption("Multi-model NLP system for detecting adapted harmful-content and target-community labels")
+
+    st.markdown("### Project Introduction")
+    st.write("""
+Hate and offensive content can spread rapidly through social-media and other
+digital platforms. CyberShield was built to identify potentially harmful text
+automatically using Natural Language Processing (NLP), while also indicating
+which target-community labels are associated with the content.
+""")
+
+    st.markdown("### Project Objectives")
+    st.markdown("""
+1. Detect whether a given comment matches the adapted abusive/harmful-content labels.
+2. Identify **which group is targeted** (race, religion, gender, etc.), not just yes/no.
+3. Implement and fairly **compare three different NLP models** on the same data.
+4. Evaluate model performance using standard classification metrics.
+5. Provide an explanation and a suggested next step for every prediction.
+""")
+
+    st.info("This prototype is aligned to HateXplain: a hate/offensive-content dataset with target-community annotations. The outputs should be interpreted as adapted content and target indicators, not as a direct measurement of intent or repeated behaviour.")
+
+    st.markdown("### NLP Task")
+    st.write("""
+CyberShield frames the task as a **multi-label text classification**
+problem — specifically **multi-label** classification, since one comment can
+belong to more than one category at once (e.g. abusive *and* targeting race).
+**Input:** a raw comment (free text). **Output:** six independent yes/no
+predictions, one per category, each with a confidence score.
+""")
+
+    st.markdown("### Implemented NLP Models")
+    for name, info in MODEL_INFO.items():
+        if name not in MODELS:
+            continue
+        st.markdown(f"**{name}** — {info['algorithm_type']}. "
+                    f"Feature extraction: {info['feature_method']}. {info['note']}")
+
+    st.markdown("### Dataset Summary")
+    try:
+        df, text_col, labels = get_dataset()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total records", f"{len(df):,}")
+        c2.metric("Classes / categories", len(labels))
+        c3.metric("Source", "HateXplain (Kaggle)")
+        st.caption("See the **Dataset Statistics** page for the full breakdown.")
+    except Exception as e:
+        st.warning(f"Dataset summary unavailable: {e}")
+
+    st.markdown("### Explore")
+    nc = st.columns(4)
+    targets = ["Dataset Statistics", "Data Preprocessing", "Hate/Offensive Content Detection", "Model Evaluation"]
+    descs = ["See the data behind the models", "See how raw text becomes model input",
+            "Try the detector yourself", "Compare model performance"]
+    for i, (t, d) in enumerate(zip(targets, descs)):
+        with nc[i]:
+            st.markdown(f"**{t}**")
+            st.caption(d)
+            if st.button("Go →", key=f"home_go_{t}"):
+                st.session_state.page = t
+                st.rerun()
+
+    st.caption("Educational project. Predictions are statistical and can be "
+               "wrong — always apply human judgement before acting on a result.")
+
+
+# ============================================================== Dataset Statistics
+elif page == "Dataset Statistics":
+    st.title("Dataset Statistics")
+
+    try:
+        from src.data_loader import find_csv
+        source_file = os.path.basename(find_csv(DATA_DIR))
+    except Exception:
+        source_file = "final_hateXplain.csv"
+
+    try:
+        df, text_col, labels = get_dataset()
+    except Exception as e:
+        st.error(f"Could not load the dataset: {e}")
+        st.stop()
+
+    st.markdown("### Dataset Overview")
+    lengths = df[text_col].astype(str).str.split().apply(len)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Source file", source_file)
+    c2.metric("Records", f"{len(df):,}")
+    c3.metric("Classes", len(labels))
+    c4.metric("Avg. length", f"{lengths.mean():.1f} words")
+    st.caption("Source: HateXplain — a peer-reviewed, publicly available "
+              "hate-speech dataset (via Kaggle).")
+
+    st.markdown("### Dataset Preview")
+    st.caption("First few rows, comment text with its labels.")
+    st.dataframe(df.head(10), width="stretch")
+
+    st.markdown("### Dataset Information")
+    info_df = pd.DataFrame({
+        "Column": df.columns,
+        "Data type": [str(df[c].dtype) for c in df.columns],
+        "Non-null count": [df[c].notna().sum() for c in df.columns],
+    })
+    st.dataframe(info_df, width="stretch")
+    st.caption(f"Memory usage: {df.memory_usage(deep=True).sum() / 1e6:.2f} MB")
+
+    st.markdown("### Class Distribution (Abusive vs Clean)")
+    c1, c2 = st.columns(2)
+    with c1:
+        counts = df["abusive"].value_counts().rename({0: "Clean", 1: "Abusive"})
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.pie(counts.values, labels=counts.index, autopct="%1.1f%%",
+               colors=["#27ae60", "#c0392b"])
+        st.pyplot(fig); plt.close(fig)
+    with c2:
+        fig, ax = plt.subplots(figsize=(4.5, 4))
+        counts.plot(kind="bar", ax=ax, color=["#27ae60", "#c0392b"])
+        ax.set_ylabel("Count")
+        st.pyplot(fig); plt.close(fig)
+
+    st.markdown("### Offensive Category Distribution")
+    st.caption("Categories are the ones our dataset (HateXplain) actually "
+              "provides — not a generic example list.")
+    cat_counts = df[labels].sum().sort_values(ascending=False)
+    cat_counts.index = [pretty(i) for i in cat_counts.index]
+    st.bar_chart(cat_counts)
+
+    st.markdown("### Sentence Length Distribution")
+    fig, ax = plt.subplots(figsize=(8, 3.5))
+    ax.hist(lengths, bins=50, color="#2980b9")
+    ax.set_xlim(0, lengths.quantile(0.99))
+    ax.set_xlabel("Words per comment")
+    st.pyplot(fig); plt.close(fig)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Min", int(lengths.min()))
+    c2.metric("Median", int(lengths.median()))
+    c3.metric("Mean", f"{lengths.mean():.1f}")
+    c4.metric("Max", int(lengths.max()))
+
+    st.markdown("### Word Cloud")
+    sample_for_cloud = df[text_col].sample(min(4000, len(df)), random_state=42).apply(clean_text)
+    render_wordcloud(sample_for_cloud)
+
+    st.markdown("### Most Frequent Words")
+    from collections import Counter
+    words = Counter(" ".join(sample_for_cloud).split())
+    top = pd.Series(dict(words.most_common(25)))
+    st.bar_chart(top)
+
+    st.markdown("### Label Distribution Summary")
+    dist = pd.DataFrame({
+        "Category": [pretty(l) for l in labels],
+        "Count": [int(df[l].sum()) for l in labels],
+        "Percentage": [f"{df[l].mean():.1%}" for l in labels],
+    })
+    st.dataframe(dist, width="stretch")
+
+    st.markdown("### NLP Workflow Overview")
+    st.caption("From raw comment to final prediction:")
+    render_workflow_diagram()
+
+
+# ============================================================== Data Preprocessing
+elif page == "Data Preprocessing":
+    st.title("Data Preprocessing")
+    st.caption("How raw comments are cleaned and prepared before the models see them.")
+
+    try:
+        df, text_col, labels = get_dataset()
+    except Exception as e:
+        st.error(f"Could not load the dataset: {e}")
+        st.stop()
+
+    st.markdown("### Dataset Quality Assessment")
+    issues = detect_quality_issues(df, text_col)
+    cols = st.columns(len(issues))
+    for i, (k, v) in enumerate(issues.items()):
+        cols[i].metric(k, f"{v:,}")
+    st.caption("These are checked (and where present, handled) before the "
+              "data reaches the models.")
+
+    st.markdown("### Missing Value Handling")
+    before_n = len(df) + issues["Missing (null) comments"]
+    st.write(f"Rows before dropping missing comments: **{before_n:,}** → "
+            f"after: **{len(df):,}** "
+            f"({issues['Missing (null) comments']} removed).")
+    st.caption("Handled in `src/data_loader.py` — rows with no comment text "
+              "are dropped before anything else runs.")
+
+    st.markdown("### Duplicate Detection & Removal")
+    dupes = df[df.duplicated(subset=[text_col], keep=False)].head(5)
+    if len(dupes):
+        st.write("Example duplicate comments found in the raw data:")
+        st.dataframe(dupes[[text_col]], width="stretch")
+    else:
+        st.write("No duplicate comments found in a quick scan of this dataset.")
+    st.caption("Duplicates are removed during merging (`crawler/merge_datasets.py`) "
+              "and before model training.")
+
+    st.markdown("### Text Cleaning, Tokenization & Lemmatization — Live Demo")
+    st.write("Pick a sample comment, or type your own, to see every "
+            "preprocessing step applied to it in order.")
+    demo_source = st.radio("Comment source", ["Pick from dataset", "Type my own"],
+                           horizontal=True,
+                           help="See the pipeline applied to a real dataset "
+                                "example, or test your own sentence.")
+    if demo_source == "Pick from dataset":
+        sample_row = df.sample(1, random_state=None).iloc[0]
+        demo_text = sample_row[text_col]
+        if st.button("🔀 Shuffle — pick another random comment"):
+            st.rerun()
+    else:
+        demo_text = st.text_input("Type a comment to preprocess",
+                                  "You are SO stupid!!! @someone check http://x.com #loser",
+                                  help="See exactly how this pipeline cleans your text.")
+
+    steps = clean_text_steps(demo_text)
+    for step_name, step_value in steps.items():
+        st.markdown(f"**{step_name}**")
+        st.code(step_value if step_value else "(empty)", language=None)
+
+    st.markdown("### Feature Extraction (TF-IDF: word + character n-grams)")
+    st.write("The cleaned text above is converted into numbers using TF-IDF "
+            "(Term Frequency – Inverse Document Frequency), which weighs "
+            "words by how distinctive they are, not just how often they appear. "
+            "Two kinds of features are extracted: whole **words** (shown below) "
+            "and **character n-grams** (3-5 letter chunks) — the character "
+            "features are what let the models catch lightly disguised or "
+            "misspelled words that don't match any known word exactly.")
+    try:
+        from src.predictor import _get_word_vectorizer
+        bundle = get_model(MODELS[st.session_state.get("sel_model", list(MODELS.keys())[0])])
+        cleaned_final = steps["8. Final cleaned text (fed to the model)"]
+        word_vec, _, _ = _get_word_vectorizer(bundle["pipeline"])
+        if cleaned_final.strip() and word_vec is not None:
+            vec = word_vec.transform([cleaned_final])
+            feat_names = word_vec.get_feature_names_out()
+            nz = vec.nonzero()[1]
+            if len(nz):
+                tfidf_df = pd.DataFrame({
+                    "Term": [feat_names[i] for i in nz],
+                    "TF-IDF weight": [round(vec[0, i], 4) for i in nz],
+                }).sort_values("TF-IDF weight", ascending=False)
+                st.dataframe(tfidf_df, width="stretch")
+            else:
+                st.caption("None of these words are in the model's word-level vocabulary.")
+
+            # Illustrative char n-gram example (not the full ~6-10k feature
+            # vocabulary - just enough to show what the model actually sees).
+            union = bundle["pipeline"].named_steps.get("features")
+            if union is not None:
+                char_vec = dict(union.transformer_list).get("char")
+                if char_vec is not None:
+                    cvec = char_vec.transform([cleaned_final])
+                    cfeat = char_vec.get_feature_names_out()
+                    cnz = cvec.nonzero()[1]
+                    if len(cnz):
+                        example = pd.DataFrame({
+                            "Character n-gram": [cfeat[i] for i in cnz],
+                            "TF-IDF weight": [round(cvec[0, i], 4) for i in cnz],
+                        }).sort_values("TF-IDF weight", ascending=False).head(10)
+                        st.caption("Example character n-grams extracted (top 10 by weight):")
+                        st.dataframe(example, width="stretch")
+        else:
+            st.caption("Nothing left to vectorize after cleaning.")
+    except Exception as e:
+        st.caption(f"TF-IDF preview unavailable: {e}")
+
+    st.markdown("### Outlier Handling")
+    repeated_count = issues["Repeated-character spam (e.g. 'aaaaaa')"]
+    st.write(f"- **{issues['Extremely short (<=2 words)']:,}** comments have "
+            "2 words or fewer after basic cleaning (low signal for classification).")
+    st.write(f"- **{repeated_count:,}** comments contain repeated-character spam patterns.")
+    st.caption("Flagged for awareness; not automatically removed from "
+              "training, since even short comments can be genuinely abusive "
+              "(e.g. \"kill yourself\").")
+
+    st.markdown("### Before & After Comparison")
+    demo_df = df.sample(min(5, len(df)), random_state=1)[[text_col]].copy()
+    demo_df["Cleaned"] = demo_df[text_col].apply(clean_text)
+    demo_df.columns = ["Original", "Cleaned"]
+    st.dataframe(demo_df, width="stretch")
+
+    st.markdown("### Processed Dataset Preview")
+    preview = df.head(10).copy()
+    preview["cleaned_" + text_col] = preview[text_col].apply(clean_text)
+    st.dataframe(preview, width="stretch")
+
+
+# ============================================================== Hate/Offensive Content Detection
+elif page == "Hate/Offensive Content Detection":
+    st.title("Hate/Offensive Content Detection")
+    page_controls(show_model=True, show_threshold=True, key_prefix="detect")
+    bundle = get_model(MODELS[st.session_state.sel_model])
+    threshold = st.session_state.sel_threshold
+    model_name = st.session_state.sel_model
+
+    tab1, tab2, tab3 = st.tabs(["✍️ Enter Comment", "📁 Import CSV", "🌐 Social Media URL"])
+
+    # ---- Tab 1: Enter Comment ----
+    with tab1:
+        if "text_input" not in st.session_state:
+            st.session_state.text_input = ""
+        c1, c2 = st.columns([1, 1])
+        if c1.button("Load example"):
+            st.session_state.text_input = (
+                "you are a stupid idiot nobody likes you\n"
+                "Thanks for sharing, this was really useful!\n"
+                "go back to your own country you don't belong here")
+        if c2.button("Clear"):
+            st.session_state.text_input = ""
+
+        text = st.text_area(
+            "Comment(s)", key="text_input", height=140,
+            placeholder="Type a comment here...",
+            help="One comment, or paste several — put each on its own line "
+                 "to analyse them all at once.")
+
+        if st.button("Analyze", type="primary", key="analyze_text"):
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            if not lines:
+                st.warning("Please enter at least one comment.")
+            elif len(lines) == 1:
+                t0 = time.time()
+                res = predict(bundle, lines[0], threshold=threshold)
+                result_card(res, threshold, model_name, time.time() - t0, lines[0])
+            else:
+                st.write(f"Analyzing **{len(lines)}** comments with **{model_name}**...")
+                df_res = analyze_many(bundle, lines, threshold)
+                n_bad = (df_res["Harmful Content"] == "YES").sum()
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total", len(df_res))
+                c2.metric("Flagged", int(n_bad))
+                c3.metric("Clean", int(len(df_res) - n_bad))
+                st.dataframe(df_res[["Comment", "Harmful Content", "Categories",
+                                     "Confidence"]], width="stretch")
+                summary_charts(df_res)
+                st.markdown("#### 🧭 Suggested next step")
+                st.markdown(batch_suggestion(df_res))
+                st.download_button("Download results (CSV)",
+                                   df_res.to_csv(index=False).encode(),
+                                   "cybershield_results.csv", "text/csv")
+
+    # ---- Tab 2: Import CSV ----
+    with tab2:
+        up = st.file_uploader(
+            "Choose a file", type=["csv", "txt"],
+            help="CSV needs a text column (you'll pick which one). TXT: one "
+                 "comment per line.")
+        if up is not None:
+            try:
+                if up.name.lower().endswith(".csv"):
+                    raw = pd.read_csv(up)
+                    st.write("Preview:")
+                    st.dataframe(raw.head(), width="stretch")
+                    col = st.selectbox("Which column holds the comment text?",
+                                       list(raw.columns),
+                                       help="Pick the column containing the "
+                                            "actual comment/message text.")
+                    texts = raw[col].dropna().astype(str).tolist()
+                else:
+                    texts = [l.strip() for l in
+                             up.read().decode("utf-8", errors="ignore").split("\n")
+                             if l.strip()]
+                st.success(f"Loaded {len(texts)} comments.")
+
+                if st.button("Analyze file", type="primary"):
+                    with st.spinner("Analyzing..."):
+                        df_res = analyze_many(bundle, texts, threshold)
+                    n_bad = (df_res["Harmful Content"] == "YES").sum()
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Total", len(df_res))
+                    c2.metric("Flagged", int(n_bad))
+                    c3.metric("Flag rate", f"{n_bad/max(len(df_res),1):.0%}")
+                    st.dataframe(df_res, width="stretch")
+                    summary_charts(df_res)
+                    st.markdown("#### 🧭 Suggested next step")
+                    st.markdown(batch_suggestion(df_res))
+                    st.download_button("Download full results (CSV)",
+                                       df_res.to_csv(index=False).encode(),
+                                       "batch_results.csv", "text/csv")
+            except Exception as e:
+                st.error(f"Could not read that file: {e}")
+
+    # ---- Tab 3: Social Media URL ----
+    with tab3:
+        st.info("**Supported:** YouTube and Reddit, via official public APIs. "
+               "**Not supported:** Facebook, Instagram, X/Twitter, TikTok — "
+               "their Terms of Service prohibit automated collection.")
+        st.caption("YouTube's API is genuinely free (no credit card) — see "
+                  "the box below for a 2-minute setup, or skip it with Demo mode.")
+        with st.expander("Get a free YouTube API key (~2 minutes)"):
+            st.markdown("""
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project (any name is fine)
+3. Search **"YouTube Data API v3"** in the API Library → click **Enable**
+4. Go to **Credentials → Create Credentials → API key** → copy it
+5. Paste it in the box below
+""")
+        api_key = st.text_input(
+            "YouTube API key", type="password",
+            help="Only needed for YouTube links. Leave blank for Reddit or Demo mode.")
+
+        url = st.text_input(
+            "Social media URL",
+            placeholder="https://www.youtube.com/watch?v=...  or  https://www.reddit.com/r/.../comments/...",
+            help="Paste a YouTube video link or a Reddit thread link.")
+        n_max = st.slider("Max comments to fetch", 10, 100, 40, 10,
+                          help="More comments = more thorough, but slower to fetch.")
+
+        c1, c2 = st.columns([1, 1])
+        fetch_clicked = c1.button("Fetch comments", type="primary")
+        demo_clicked = c2.button("Use demo comments (no API needed)")
+
+        if demo_clicked:
+            st.session_state.fetched = social.demo_comments()
+            st.session_state.is_demo = True
+        if fetch_clicked:
+            if not url.strip():
+                st.warning("Please paste a URL first.")
+            else:
+                with st.spinner("Fetching..."):
+                    comments, err, platform = social.fetch_comments(url, api_key, n_max)
+                if err:
+                    st.error(err)
+                else:
+                    st.session_state.fetched = comments
+                    st.session_state.is_demo = False
+                    st.success(f"Fetched {len(comments)} comments from {platform}.")
+
+        comments = st.session_state.get("fetched", [])
+        if comments:
+            if st.session_state.get("is_demo"):
+                st.warning("Showing **demo sample comments** — not real fetched data.")
+            st.metric("Comments retrieved", len(comments))
+            with st.expander("Preview retrieved comments"):
+                for c in comments[:15]:
+                    st.write("-", c)
+
+            if st.button("Analyze comments", type="primary", key="analyze_social"):
+                df_res = analyze_many(bundle, comments, threshold)
+                n_bad = (df_res["Harmful Content"] == "YES").sum()
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Analyzed", len(df_res))
+                c2.metric("Flagged", int(n_bad))
+                c3.metric("Flag rate", f"{n_bad/len(df_res):.0%}")
+                st.dataframe(df_res[["Comment", "Harmful Content", "Categories",
+                                     "Confidence"]], width="stretch")
+                summary_charts(df_res)
+                st.markdown("#### 🧭 Suggested next step")
+                st.markdown(batch_suggestion(df_res))
+                st.download_button("Download results (CSV)",
+                                   df_res.to_csv(index=False).encode(),
+                                   "social_results.csv", "text/csv")
+
+
+# ============================================================== Model Evaluation
+elif page == "Model Evaluation":
+    st.title("Model Evaluation")
+
+    st.markdown("### Model Overview")
+    overview = pd.DataFrame([
+        {"Model": name, "Feature Extraction": info["feature_method"],
+         "Algorithm Type": info["algorithm_type"]}
+        for name, info in MODEL_INFO.items() if name in MODELS
+    ])
+    st.dataframe(overview, width="stretch")
+
+    st.markdown("### Same-Comment Prediction (all models)")
+    st.caption("Each model is judged against **its own** evidence-based "
+              "threshold (shown in the table) rather than one shared value — "
+              "see the note under Evaluation Metrics below for why that matters.")
+    text = st.text_input("Comment to compare", "you are a stupid idiot nobody likes you",
+                         help=f"Runs this exact comment through all "
+                              f"{len(MODELS)} available models so you can "
+                              f"compare their predictions.")
+    if st.button("Compare models", type="primary") and text.strip():
+        rows = []
+        for name, path in MODELS.items():
+            b = get_model(path)
+            model_threshold = DEFAULT_THRESHOLDS.get(name, 0.5)
+            t0 = time.time()
+            r = predict(b, text, threshold=model_threshold)
+            top_score = max(r["probs"].values())
+            # Same verdict-aware logic as elsewhere: higher always means
+            # "more confident in THIS model's own verdict", not just the
+            # raw top score (which looks backwards for a "Clean" verdict).
+            top_confidence = top_score if r["is_flagged"] else (1 - top_score)
+            rows.append({
+                "Model": name,
+                "Threshold used": model_threshold,
+                "Prediction": "HATE/OFFENSIVE CONTENT" if r["is_flagged"] else "No Flag",
+                "Categories": ", ".join(pretty(l) for l in r["flagged"]) or "-",
+                "Top confidence": round(top_confidence, 3),
+                "Time (ms)": round((time.time() - t0) * 1000, 1),
+                **{pretty(l): round(r["probs"][l], 3) for l in LABELS},
+            })
+        cmp = pd.DataFrame(rows)
+        st.dataframe(cmp[["Model", "Threshold used", "Prediction", "Categories",
+                          "Top confidence", "Time (ms)"]], width="stretch")
+        st.bar_chart(cmp.set_index("Model")[[pretty(l) for l in LABELS]].T)
+        if cmp["Prediction"].nunique() > 1:
+            st.warning("The models disagree on this comment.")
+        else:
+            st.success(f"All {len(MODELS)} models agree on this comment.")
+
+    st.markdown("### Evaluation Metrics")
+    st.caption("**Accuracy** below is per-label accuracy averaged across all "
+              "6 categories (each treated as its own yes/no question) — this "
+              "is the number comparable to what most papers report. Subset "
+              "Accuracy is the much stricter \"all 6 correct at once\" measure.")
+
+    with st.expander("ℹ️ Why does each model use a different detection threshold?"):
+        st.markdown("""
+The thresholds used by the deployed models were selected **only on the validation split** using validation micro-F1. The final test set was kept untouched until the thresholds were fixed. The selected values are:
+
+- **Logistic Regression: 0.44** (validation micro-F1 0.7051)
+- **Linear SVM: 0.48** (validation micro-F1 0.6869)
+- **Random Forest: 0.46** (validation micro-F1 0.7001)
+
+The thresholds are model-specific because Logistic Regression, Linear SVM and Random Forest produce scores on different scales. The deployed application stores the selected threshold with each model and uses the same fixed threshold during prediction.
+
+The **Gender** and **Miscellaneous** labels remain the weakest categories, so thresholding alone cannot eliminate false positives or false negatives caused by class imbalance and label ambiguity.
+""")
+
+    if not os.path.exists(SCORES_CSV):
+        st.warning("No scores yet — train the models first.")
+        st.stop()
+
+    scores = pd.read_csv(SCORES_CSV)
+    display_cols = ["model", "accuracy", "subset_accuracy",
+                    "precision_macro", "recall_macro", "f1_macro",
+                    "f1_weighted", "train_time_sec", "predict_time_sec"]
+    display_cols = [c for c in display_cols if c in scores.columns]
+    st.dataframe(scores[display_cols], width="stretch")
+
+    st.markdown("### Confusion Matrix")
+    st.caption("Computed live on the test set for the model selected above.")
+    if st.button("Compute confusion matrices & classification report"):
+        from sklearn.metrics import confusion_matrix, classification_report
+        from src.common import prepare_data
+        bundle = get_model(MODELS[st.session_state.sel_model])
+        with st.spinner("Running the model over the test set..."):
+            X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
+            P = _label_probs(bundle["pipeline"], list(X_test))
+            pred = (P >= float(bundle.get("threshold", DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)))).astype(int)
+        cols = st.columns(3)
+        for i, l in enumerate(labels):
+            cm = confusion_matrix(y_test.values[:, i], pred[:, i])
+            fig, ax = plt.subplots(figsize=(2.6, 2.4))
+            ax.imshow(cm, cmap="Blues")
+            for a in range(2):
+                for b in range(2):
+                    ax.text(b, a, cm[a, b], ha="center", va="center", fontsize=9)
+            ax.set_title(pretty(l), fontsize=9)
+            ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
+            ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+            cols[i % 3].pyplot(fig); plt.close(fig)
+
+        st.markdown("### Classification Report")
+        report = classification_report(y_test.values, pred, target_names=labels,
+                                       output_dict=True, zero_division=0)
+        report_df = pd.DataFrame(report).T.round(3)
+        st.dataframe(report_df, width="stretch")
+
+    st.markdown("### Performance Visualization")
+    metric_choice = st.selectbox("Metric to compare", 
+                                 ["accuracy", "f1_macro", "f1_weighted",
+                                  "train_time_sec", "predict_time_sec"],
+                                 help=f"Pick which metric to chart across all {len(MODELS)} models.")
+    if metric_choice in scores.columns:
+        st.bar_chart(scores.set_index("model")[metric_choice])
+
+    st.markdown("### Overall Evaluation Summary")
+    best_acc = scores.loc[scores["accuracy"].idxmax(), "model"]
+    best_f1 = scores.loc[scores["f1_macro"].idxmax(), "model"]
+    fastest_train = scores.loc[scores["train_time_sec"].idxmin(), "model"] if "train_time_sec" in scores else None
+    fastest_predict = scores.loc[scores["predict_time_sec"].idxmin(), "model"] if "predict_time_sec" in scores else None
+
+    st.markdown(f"""
+- **Highest accuracy:** {best_acc}
+- **Best macro-F1 (balanced across categories):** {best_f1}
+- **Fastest to train:** {fastest_train}
+- **Fastest to predict:** {fastest_predict}
+
+**Strengths & weaknesses:**
+- **Logistic Regression** — fast, strong overall balance, with fitted probability estimates; a
+  solid default choice.
+- **Linear SVM** — competitive accuracy, but no native probability estimates
+  (confidence is derived, not directly modeled) and slightly lower recall on
+  rarer categories.
+- **Random Forest** — often the highest raw accuracy and precision, at the
+  cost of noticeably slower training and prediction, and a smaller
+  vocabulary (to keep the saved model a reasonable size).
+
+No single model wins on every metric — which is itself a valid finding: on
+TF-IDF features, the choice of classifier matters less than the quality of
+the features and the amount of labeled data available.
+""")
