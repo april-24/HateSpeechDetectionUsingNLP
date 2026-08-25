@@ -911,188 +911,26 @@ The **Gender** and **Miscellaneous** labels remain the weakest categories, so th
 
     st.markdown("### Confusion Matrix")
     st.caption("Computed live on the test set for the model selected above.")
-   if st.button("Compute confusion matrices & classification report"):
-    import numpy as np
-    from sklearn.metrics import confusion_matrix, classification_report
-    from src.common import prepare_data
-
-    selected_model = st.session_state.sel_model
-    bundle = get_model(MODELS[selected_model])
-
-    try:
-        with st.spinner("Running the model over the final test set..."):
-
-            # ---------------------------------------------------------
-            # Load the data.
-            #
-            # Current Option-B version normally returns:
-            #   X_train, X_test, y_train, y_test, labels
-            #
-            # Some earlier revised versions returned:
-            #   X_train, X_val, X_test, y_train, y_val, y_test, labels
-            #
-            # This code supports BOTH formats so deployment will not
-            # break because of a return-value mismatch.
-            # ---------------------------------------------------------
-            data_result = prepare_data(DATA_DIR, verbose=False)
-
-            if len(data_result) == 5:
-                X_train, X_test, y_train, y_test, labels = data_result
-
-            elif len(data_result) == 7:
-                (
-                    X_train,
-                    X_val,
-                    X_test,
-                    y_train,
-                    y_val,
-                    y_test,
-                    labels,
-                ) = data_result
-
-            else:
-                raise ValueError(
-                    f"Unexpected number of values returned by prepare_data(): "
-                    f"{len(data_result)}. Expected 5 or 7."
-                )
-
-            # ---------------------------------------------------------
-            # Generate label scores/probabilities for the FINAL TEST SET
-            # ---------------------------------------------------------
-            P = _label_probs(
-                bundle["pipeline"],
-                list(X_test)
-            )
-
-            # Use the model-specific threshold selected during training/CV.
-            threshold = float(
-                bundle.get(
-                    "threshold",
-                    DEFAULT_THRESHOLDS.get(selected_model, 0.5)
-                )
-            )
-
-            pred = (np.asarray(P) >= threshold).astype(int)
-
-            # Convert to NumPy arrays to avoid pandas indexing problems.
-            y_true = np.asarray(y_test).astype(int)
-            pred = np.asarray(pred).astype(int)
-            labels = list(labels)
-
-            # ---------------------------------------------------------
-            # Safety checks
-            # ---------------------------------------------------------
-            if y_true.ndim != 2:
-                raise ValueError(
-                    f"Unexpected y_test shape: {y_true.shape}. "
-                    "Expected a 2D multi-label matrix."
-                )
-
-            if pred.ndim != 2:
-                raise ValueError(
-                    f"Unexpected prediction shape: {pred.shape}. "
-                    "Expected a 2D multi-label matrix."
-                )
-
-            if y_true.shape != pred.shape:
-                raise ValueError(
-                    f"Test-label and prediction shapes do not match: "
-                    f"y_true={y_true.shape}, pred={pred.shape}"
-                )
-
-            if y_true.shape[1] != len(labels):
-                raise ValueError(
-                    f"Number of labels ({len(labels)}) does not match "
-                    f"prediction columns ({y_true.shape[1]})."
-                )
-
-        # -------------------------------------------------------------
-        # Display information
-        # -------------------------------------------------------------
-        st.success(
-            f"Confusion matrices generated successfully using the final "
-            f"test set. Model: {selected_model} | Threshold: {threshold:.2f}"
-        )
-
-        st.caption(
-            "The final test set is used only for evaluation. "
-            "The model-specific threshold was selected during training "
-            "cross-validation and is not recalculated here."
-        )
-
-        # -------------------------------------------------------------
-        # Six confusion matrices
-        # -------------------------------------------------------------
-        st.markdown("#### Confusion Matrices by Label")
-
+    if st.button("Compute confusion matrices & classification report"):
+        from sklearn.metrics import confusion_matrix, classification_report
+        from src.common import prepare_data
+        bundle = get_model(MODELS[st.session_state.sel_model])
+        with st.spinner("Running the model over the test set..."):
+            X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
+            P = _label_probs(bundle["pipeline"], list(X_test))
+            pred = (P >= float(bundle.get("threshold", DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)))).astype(int)
         cols = st.columns(3)
-
-        for i, label in enumerate(labels):
-
-            cm = confusion_matrix(
-                y_true[:, i],
-                pred[:, i],
-                labels=[0, 1]
-            )
-
-            fig, ax = plt.subplots(figsize=(3.0, 2.7))
-
+        for i, l in enumerate(labels):
+            cm = confusion_matrix(y_test.values[:, i], pred[:, i])
+            fig, ax = plt.subplots(figsize=(2.6, 2.4))
             ax.imshow(cm, cmap="Blues")
-
-            for row in range(2):
-                for col in range(2):
-                    ax.text(
-                        col,
-                        row,
-                        str(cm[row, col]),
-                        ha="center",
-                        va="center",
-                        fontsize=10
-                    )
-
-            ax.set_title(pretty(label), fontsize=9)
-            ax.set_xlabel("Predicted", fontsize=9)
-            ax.set_ylabel("Actual", fontsize=9)
-
-            ax.set_xticks([0, 1])
-            ax.set_yticks([0, 1])
-            ax.set_xticklabels(["Negative", "Positive"], fontsize=8)
-            ax.set_yticklabels(["Negative", "Positive"], fontsize=8)
-
-            fig.tight_layout()
-
-            cols[i % 3].pyplot(fig, use_container_width=True)
-            plt.close(fig)
-
-        # -------------------------------------------------------------
-        # Classification report
-        # -------------------------------------------------------------
-        st.markdown("#### Classification Report")
-
-        report_dict = classification_report(
-            y_true,
-            pred,
-            target_names=labels,
-            output_dict=True,
-            zero_division=0
-        )
-
-        report_df = pd.DataFrame(report_dict).transpose()
-
-        st.dataframe(
-            report_df.round(4),
-            use_container_width=True
-        )
-
-    except Exception as e:
-        st.error("Unable to generate the confusion matrices.")
-
-        st.exception(e)
-
-        st.info(
-            "Check that app.py, src/common.py, the trained model files, "
-            "and the dataset are from the same project version."
-        )
+            for a in range(2):
+                for b in range(2):
+                    ax.text(b, a, cm[a, b], ha="center", va="center", fontsize=9)
+            ax.set_title(pretty(l), fontsize=9)
+            ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
+            ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+            cols[i % 3].pyplot(fig); plt.close(fig)
 
         st.markdown("### Classification Report")
         report = classification_report(y_test.values, pred, target_names=labels,
