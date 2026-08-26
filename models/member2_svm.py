@@ -35,8 +35,7 @@ def build_pipeline():
         ("features", build_word_char_features(word_max_features=30000,
                                               char_max_features=10000)),
         ("clf", OneVsRestClassifier(CalibratedClassifierCV(
-            LinearSVC(C=1.0, class_weight="balanced"), method="sigmoid", cv=2),
-            n_jobs=-1)),
+            LinearSVC(C=1.0, class_weight="balanced"), method="sigmoid", cv=3))),
     ])
 
 

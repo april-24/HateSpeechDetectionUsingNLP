@@ -1,10 +1,10 @@
 model,case_type,detected,total,rate
-Linear SVM,benign,1,6,0.16666666666666666
+Linear SVM,benign,4,6,0.6666666666666666
 Linear SVM,harmful_obfuscated,6,6,1.0
 Linear SVM,harmful_plain,6,6,1.0
-Logistic Regression,benign,1,6,0.16666666666666666
-Logistic Regression,harmful_obfuscated,6,6,1.0
-Logistic Regression,harmful_plain,6,6,1.0
-Random Forest,benign,4,6,0.6666666666666666
-Random Forest,harmful_obfuscated,6,6,1.0
-Random Forest,harmful_plain,6,6,1.0
+Logistic Regression,benign,0,6,0.0
+Logistic Regression,harmful_obfuscated,3,6,0.5
+Logistic Regression,harmful_plain,3,6,0.5
+Random Forest,benign,1,6,0.16666666666666666
+Random Forest,harmful_obfuscated,1,6,0.16666666666666666
+Random Forest,harmful_plain,2,6,0.3333333333333333

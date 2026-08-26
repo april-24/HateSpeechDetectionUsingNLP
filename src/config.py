@@ -33,9 +33,9 @@ MODEL_FILES = {
 # model bundles. They are selected from pooled out-of-fold predictions on the
 # 80% development set, never from the final test set.
 DEFAULT_THRESHOLDS = {
-    "Logistic Regression": 0.27,
-    "Linear SVM": 0.46,
-    "Random Forest": 0.42,
+    "Logistic Regression": 0.48,
+    "Linear SVM": 0.31,
+    "Random Forest": 0.48,
 }
 
 SCORES_CSV = "results/model_scores.csv"

@@ -32,8 +32,7 @@ def build_pipeline():
         ("features", build_word_char_features(word_max_features=30000,
                                               char_max_features=10000)),
         ("clf", OneVsRestClassifier(
-            LogisticRegression(max_iter=1000, C=3.0, class_weight="balanced"),
-            n_jobs=-1)),
+            LogisticRegression(max_iter=1000, C=3.0, class_weight="balanced"))),
     ])
 
 

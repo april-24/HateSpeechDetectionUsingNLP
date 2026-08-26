@@ -27,26 +27,21 @@ target-community outputs.
 6. The selected threshold is applied once to the untouched final test set.
 
 LinearSVC has no native probabilities, so it is wrapped in
-`CalibratedClassifierCV(method="sigmoid", cv=2)`. No sigmoid is manually
+`CalibratedClassifierCV(method="sigmoid", cv=3)`. No sigmoid is manually
 applied to raw SVM margins.
-
-Each model receives its own out-of-fold-selected threshold for the primary
-`abusive` label and separate thresholds for the five target-community labels.
-The final application uses a two-stage decision: the primary harmful-content
-decision is made first, and target groups are surfaced only when that decision is positive.
 
 ## Final results
 
-| Model | OOF abusive threshold | Accuracy | Primary F1 | Micro-F1 | Macro-F1 | Subset accuracy |
-|---|---:|---:|---:|---:|---:|---:|
-| Logistic Regression | 0.27 | **0.8357** | **0.8075** | **0.7138** | **0.6722** | **0.4010** |
-| Linear SVM | 0.46 | 0.8348 | 0.8032 | 0.7058 | 0.6624 | 0.4023 |
-| Random Forest | 0.42 | 0.8283 | 0.7850 | 0.6984 | 0.6528 | 0.3804 |
+| Model | OOF threshold | Accuracy | Micro-F1 | Macro-F1 | Subset accuracy |
+|---|---:|---:|---:|---:|---:|
+| Logistic Regression | 0.48 | 0.8352 | 0.7105 | 0.6893 | 0.3645 |
+| Linear SVM | 0.31 | 0.8335 | **0.7179** | 0.6693 | 0.3523 |
+| Random Forest | 0.48 | 0.8232 | 0.6930 | 0.6828 | 0.3170 |
 
-Logistic Regression has the highest final-test primary harmful-content F1 and
-highest overall micro-F1, while Linear SVM has the highest primary precision.
-The default model is therefore selected from development-side OOF abusive F1,
-which favours Logistic Regression.
+Linear SVM has the highest final-test micro-F1 and recall. Logistic Regression
+has the highest accuracy, macro-F1, weighted F1, and subset accuracy, making it
+the preferred balanced default. Random Forest trains and predicts fastest in
+this run but has lower overall effectiveness.
 
 ## Installation and use
 
