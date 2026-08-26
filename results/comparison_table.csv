@@ -1,4 +1,4 @@
 model,harmful_precision,harmful_recall,harmful_f1,harmful_false_positive_rate,harmful_false_negative_rate,harmful_tn,harmful_fp,harmful_fn,harmful_tp,accuracy,f1_micro,f1_macro,train_time_sec,predict_time_sec,threshold_abusive
-Logistic Regression,0.7578,0.8439,0.7985,0.4107,0.1561,954,665,385,2081,0.8355,0.717,0.6836,6.45,0.6049,0.37
-Linear SVM,0.7653,0.8224,0.7928,0.3842,0.1776,997,622,438,2028,0.8313,0.7057,0.6699,8.33,0.5194,0.49
-Random Forest,0.7342,0.8066,0.7687,0.4447,0.1934,899,720,477,1989,0.8357,0.7134,0.6899,3.848,0.4077,0.46
+Logistic Regression,0.7597,0.8524,0.8034,0.4242,0.1476,900,663,363,2096,0.8384,0.7245,0.6927,4.112,0.3076,0.37
+Linear SVM,0.7628,0.8451,0.8019,0.4133,0.1549,917,646,381,2078,0.8336,0.7126,0.6783,5.928,0.3514,0.49
+Random Forest,0.7729,0.7654,0.7691,0.3538,0.2346,1010,553,577,1882,0.8378,0.7104,0.6897,5.339,0.3039,0.47
