@@ -34,6 +34,7 @@ How we turn this into MULTI-LABEL:
 import os
 import glob
 import pandas as pd
+from pathlib import Path
 
 TEXT_COL = "comment"
 
@@ -51,7 +52,7 @@ LABEL_COLS = ["abusive", "Race", "Religion", "Gender",
               "Sexual_Orientation", "Miscellaneous"]
 
 
-def find_csv(data_dir: str) -> str:
+def find_csv(data_dir: str | Path) -> str:
     """
     Locate the dataset CSV inside data_dir, searched recursively.
     Priority:
@@ -60,7 +61,8 @@ def find_csv(data_dir: str) -> str:
       2. final_hateXplain.csv   - the original Kaggle dataset
       3. anything else with a 'comment' column
     """
-    csvs = glob.glob(os.path.join(data_dir, "**", "*.csv"), recursive=True)
+    data_dir = Path(data_dir).resolve()
+    csvs = glob.glob(str(data_dir / "**" / "*.csv"), recursive=True)
     if not csvs:
         raise FileNotFoundError(
             f"No .csv found under '{data_dir}'. Unzip the Kaggle dataset there first."
@@ -109,7 +111,7 @@ def _is_already_binary(df: pd.DataFrame) -> bool:
     return all(col in df.columns for col in LABEL_COLS)
 
 
-def load_dataset(data_dir: str = "data", verbose: bool = True):
+def load_dataset(data_dir: str | Path = None, verbose: bool = True):
     """
     Returns (df, text_col, label_cols) where df has the text column and the 6
     binary label columns; label_cols == LABEL_COLS.
@@ -118,6 +120,8 @@ def load_dataset(data_dir: str = "data", verbose: bool = True):
       - raw HateXplain columns (label, Race, Religion, ...)          -> converted via build_labels()
       - already-binary columns (abusive, Race, Religion, ... as 0/1) -> used as-is
     """
+    if data_dir is None:
+        data_dir = Path(__file__).resolve().parents[1] / "data"
     path = find_csv(data_dir)
     raw = pd.read_csv(path)
 

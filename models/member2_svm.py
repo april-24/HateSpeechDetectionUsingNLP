@@ -14,17 +14,19 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.train_utils import train_and_save
 from src.train_utils import train_and_save, build_word_char_features
+from src.config import RESULTS_DIR
 
 MODEL_NAME = "Linear SVM"
-MODEL_PATH = "results/model_svm.joblib"
+MODEL_PATH = str(RESULTS_DIR / "model_svm.joblib")
 
 
 def build_pipeline(C=1.0, class_weight="balanced"):
     return Pipeline([
         ("features", build_word_char_features(
-            word_max_features=8000,
-            char_max_features=1000,
+            word_max_features=5000,
+            char_max_features=500,
             word_ngram_range=(1, 3))),
         ("clf", OneVsRestClassifier(
             CalibratedClassifierCV(

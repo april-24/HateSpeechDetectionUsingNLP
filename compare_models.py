@@ -4,9 +4,9 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from src.config import RESULTS_DIR, SCORES_CSV
 
-
-SCORES = "results/model_scores.csv"
+SCORES = SCORES_CSV
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
         "predict_time_sec", "threshold_abusive"
     ]
     table = df[[c for c in primary_cols if c in df.columns]].copy()
-    table.to_csv("results/comparison_table.csv", index=False)
+    table.to_csv(RESULTS_DIR / "comparison_table.csv", index=False)
 
     print("\nPRIMARY HARMFUL-CONTENT COMPARISON")
     print(table.to_string(index=False))
@@ -44,7 +44,7 @@ def main():
         ax.tick_params(axis="x", rotation=20)
     fig.suptitle("Primary harmful-content model comparison")
     fig.tight_layout()
-    fig.savefig("results/comparison_f1.png", dpi=160, bbox_inches="tight")
+    fig.savefig(RESULTS_DIR / "comparison_f1.png", dpi=160, bbox_inches="tight")
     plt.close(fig)
 
     best = table.loc[table["harmful_f1"].idxmax(), "model"]

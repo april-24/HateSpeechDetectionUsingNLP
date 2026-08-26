@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 from src.common import prepare_data
-from src.config import MODEL_FILES, PRIMARY_LABEL
+from src.config import MODEL_FILES, PRIMARY_LABEL, PROJECT_ROOT, RESULTS_DIR
 from src.predictor import load_model, _label_probs
 from src.preprocessing import clean_text
 from src.behavioral_evaluation import main as run_behavioral
@@ -40,7 +40,7 @@ def primary_confusion_figure():
     fig.suptitle("Final-test primary harmful-content confusion matrices")
     fig.tight_layout()
     fig.savefig(
-        "results/confusion_matrices_final_test.png",
+        str(RESULTS_DIR / "confusion_matrices_final_test.png"),
         dpi=180, bbox_inches="tight")
     plt.close(fig)
 
@@ -72,7 +72,7 @@ def multilabel_confusion_figure():
     fig.supxlabel("Predicted")
     fig.supylabel("Actual")
     fig.tight_layout()
-    fig.savefig("results/confusion_matrices_multilabel_final_test.png",
+    fig.savefig(str(RESULTS_DIR / "confusion_matrices_multilabel_final_test.png"),
                 dpi=170, bbox_inches="tight")
     plt.close(fig)
 
@@ -80,7 +80,7 @@ def multilabel_confusion_figure():
 def evasion_demonstration():
     """Keep the evasion result explicitly qualitative; behavioural evaluation
     is the quantitative larger test."""
-    cases = pd.read_csv("data/behavioral_test_cases.csv")
+    cases = pd.read_csv(PROJECT_ROOT / "data" / "behavioral_test_cases.csv")
     cases = cases[cases["category"] == "obfuscated_harmful"].copy()
     rows=[]
     for model_name,path in MODEL_FILES.items():
@@ -108,15 +108,15 @@ def evasion_demonstration():
     ).reset_index()
     summary["detection_rate"]=summary["detected"]/summary["total"]
     summary["interpretation"]="Qualitative demonstration; not a claim of adversarial robustness."
-    details.to_csv("results/evasion_demonstration_details.csv",index=False)
-    summary.to_csv("results/evasion_demonstration_summary.csv",index=False)
+    details.to_csv(str(RESULTS_DIR / "evasion_demonstration_details.csv"),index=False)
+    summary.to_csv(str(RESULTS_DIR / "evasion_demonstration_summary.csv"),index=False)
 
 
 if __name__ == "__main__":
-    os.makedirs("results", exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     primary_confusion_figure()
     multilabel_confusion_figure()
-    if os.path.exists("data/behavioral_test_cases.csv"):
+    if (PROJECT_ROOT / "data" / "behavioral_test_cases.csv").exists():
         run_behavioral()
         evasion_demonstration()
     print("Generated final-test confusion matrices and behavioural/evasion artifacts.")

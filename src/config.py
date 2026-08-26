@@ -1,4 +1,14 @@
-"""Central configuration for the hate/offensive content detector."""
+"""Central configuration for the hate/offensive content detector.
+
+All project paths are resolved from this file so the app works whether the
+project directory is the repository root or a nested GitHub subfolder.
+"""
+
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RESULTS_DIR = PROJECT_ROOT / "results"
+DATA_DIR = PROJECT_ROOT / "data"
 
 LABELS = ["abusive", "Race", "Religion", "Gender",
           "Sexual_Orientation", "Miscellaneous"]
@@ -17,9 +27,9 @@ DISPLAY_NAMES = {
 }
 
 MODEL_FILES = {
-    "Logistic Regression": "results/model_lr.joblib",
-    "Linear SVM": "results/model_svm.joblib",
-    "Random Forest": "results/model_rf.joblib",
+    "Logistic Regression": str(RESULTS_DIR / "model_lr.joblib"),
+    "Linear SVM": str(RESULTS_DIR / "model_svm.joblib"),
+    "Random Forest": str(RESULTS_DIR / "model_rf.joblib"),
 }
 
 # Six-label fallback thresholds. Retrained model bundles override these values.
@@ -38,8 +48,7 @@ DEFAULT_THRESHOLDS = {
     },
 }
 
-SCORES_CSV = "results/model_scores.csv"
-DATA_DIR = "data"
+SCORES_CSV = str(RESULTS_DIR / "model_scores.csv")
 
 
 def pretty(label: str) -> str:

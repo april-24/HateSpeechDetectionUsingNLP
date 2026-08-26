@@ -23,9 +23,11 @@ from sklearn.metrics import (
     precision_recall_fscore_support
 )
 from sklearn.model_selection import StratifiedKFold
-from sklearn.pipeline import FeatureUnion
+from sklearn.pipeline import FeatureUnion, Pipeline
+from joblib import Memory
 
 from .common import prepare_data, stratification_key, RANDOM_STATE
+from .config import RESULTS_DIR
 from .evaluate import evaluate_model, save_result
 
 
@@ -33,7 +35,7 @@ LABEL_NAMES = ["abusive", "Race", "Religion", "Gender",
                "Sexual_Orientation", "Miscellaneous"]
 
 
-def build_word_char_features(word_max_features=30000, char_max_features=10000,
+def build_word_char_features(word_max_features=5000, char_max_features=500,
                              word_ngram_range=(1, 3)):
     """TF-IDF with word unigrams/bigrams/trigrams plus character n-grams."""
     # Word trigrams preserve phrases such as "go back to" and "do not belong".
@@ -167,8 +169,8 @@ def _save_oof_evidence(model_name, y_true, probabilities, labels, thresholds):
         out[f"prob_{label}"] = probabilities[:, i]
         out[f"pred_{label}"] = (
             probabilities[:, i] >= thresholds[label]).astype(int)
-    out.to_csv(os.path.join("results", f"oof_{slug}.csv"), index=False)
-    return os.path.join("results", f"oof_{slug}.csv")
+    out.to_csv(str(RESULTS_DIR / f"oof_{slug}.csv"), index=False)
+    return str(RESULTS_DIR / f"oof_{slug}.csv")
 
 
 def _save_per_label(model_name, y_true, y_pred, labels, thresholds):
@@ -191,7 +193,7 @@ def _save_per_label(model_name, y_true, y_pred, labels, thresholds):
         })
     slug = re.sub(r"[^a-z0-9]+", "_", model_name.lower()).strip("_")
     out = pd.DataFrame(rows)
-    out.to_csv(os.path.join("results", f"per_label_{slug}.csv"), index=False)
+    out.to_csv(str(RESULTS_DIR / f"per_label_{slug}.csv"), index=False)
 
 
 def _primary_cv_score(y_true, probabilities):
@@ -223,12 +225,21 @@ def select_model_configuration(model_name, pipeline, X_dev, y_dev, candidates):
     best_pipeline = None
     best_key = (-1.0, -1.0, float("inf"))
 
+    # Cache the expensive TF-IDF transformation during development-only CV.
+    # Candidate configurations in this project differ mainly in classifier
+    # hyperparameters, so the same fold-level feature matrix can be reused
+    # safely without fitting the vectorizer on validation/test records.
+    cache_dir = RESULTS_DIR / ".cv_cache"
+    memory = Memory(location=str(cache_dir), verbose=0)
+
     print(f"\nDevelopment-only model configuration search: {model_name}")
     for candidate_name, candidate in candidates:
         fold_scores = []
         fold_fprs = []
         for train_idx, valid_idx in splitter.split(X_sel, key):
             fitted = clone(candidate)
+            if hasattr(fitted, "memory"):
+                fitted.memory = memory
             fitted.fit(X_sel.iloc[train_idx], y_sel.iloc[train_idx])
             prob = label_probabilities(
                 fitted, list(X_sel.iloc[valid_idx]))[:, 0]
@@ -258,17 +269,21 @@ def select_model_configuration(model_name, pipeline, X_dev, y_dev, candidates):
             best_pipeline = candidate
         print(f"  {candidate_name}: F1={mean_f1:.4f}, FPR={mean_fpr:.4f}")
 
-    os.makedirs("results", exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     slug = re.sub(r"[^a-z0-9]+", "_", model_name.lower()).strip("_")
     pd.DataFrame(rows).to_csv(
-        os.path.join("results", f"model_selection_{slug}.csv"), index=False)
-    return clone(best_pipeline), pd.DataFrame(rows)
+        str(RESULTS_DIR / f"model_selection_{slug}.csv"), index=False)
+    # Do not serialize the development cache in the final model bundle.
+    final_pipeline = clone(best_pipeline)
+    if hasattr(final_pipeline, "memory"):
+        final_pipeline.memory = None
+    return final_pipeline, pd.DataFrame(rows)
 
 
 def train_and_save(model_name, pipeline, model_path, sample=None,
                    candidates=None):
     X_dev, X_test, y_dev, y_test, labels = prepare_data(sample=sample)
-    os.makedirs("results", exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     selection_rows = None
     if candidates:
@@ -286,10 +301,13 @@ def train_and_save(model_name, pipeline, model_path, sample=None,
     fold_f1 = []
     cv_started = time.time()
 
+    oof_memory = Memory(location=str(RESULTS_DIR / ".oof_cache"), verbose=0)
     print(f"\nFive-fold OOF threshold selection on the full 80% development set: {model_name}")
     for fold, (train_idx, valid_idx) in enumerate(
             splitter.split(X_oof, fold_key), start=1):
         fold_pipeline = clone(pipeline)
+        if hasattr(fold_pipeline, "memory"):
+            fold_pipeline.memory = oof_memory
         fold_pipeline.fit(X_oof.iloc[train_idx], y_oof.iloc[train_idx])
         p = label_probabilities(
             fold_pipeline, list(X_oof.iloc[valid_idx]))
@@ -305,7 +323,7 @@ def train_and_save(model_name, pipeline, model_path, sample=None,
     thresholds, threshold_evidence = choose_thresholds(
         y_oof.values, oof_probabilities, labels)
     threshold_evidence.to_csv(
-        os.path.join("results", f"threshold_evidence_{re.sub(r'[^a-z0-9]+','_',model_name.lower()).strip('_')}.csv"),
+        str(RESULTS_DIR / f"threshold_evidence_{re.sub(r'[^a-z0-9]+','_',model_name.lower()).strip('_')}.csv"),
         index=False)
     oof_path = _save_oof_evidence(
         model_name, y_oof.values, oof_probabilities, labels, thresholds)

@@ -12,16 +12,17 @@ from sklearn.pipeline import Pipeline
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.train_utils import train_and_save
+from src.config import RESULTS_DIR
 
 MODEL_NAME = "Random Forest"
-MODEL_PATH = "results/model_rf.joblib"
+MODEL_PATH = str(RESULTS_DIR / "model_rf.joblib")
 
 
 def build_pipeline(n_estimators=120, max_depth=35, min_samples_leaf=2,
                    class_weight="balanced"):
     return Pipeline([
         ("tfidf", TfidfVectorizer(
-            max_features=8000, ngram_range=(1, 3),
+            max_features=5000, ngram_range=(1, 3),
             min_df=2, sublinear_tf=True)),
         ("clf", OneVsRestClassifier(
             RandomForestClassifier(

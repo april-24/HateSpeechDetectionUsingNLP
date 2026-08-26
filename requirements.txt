@@ -1,15 +1,8 @@
-# Core
+# Python 3.11
 pandas==2.2.3
 numpy==2.3.5
 scikit-learn==1.8.0
 matplotlib==3.10.8
 joblib==1.5.3
-
-# NLP preprocessing
-nltk==3.9.1
-
-# Web application
-streamlit
-
-# Visualization
-wordcloud
+streamlit==1.48.1
+wordcloud==1.9.4

@@ -1,12 +1,13 @@
 """Shared data preparation for a leakage-safe model comparison.
 
 The final 20% test set is created once and is never used for model selection
-or threshold selection.  Three-fold cross-validation is subsequently performed
+or threshold selection.  Five-fold cross-validation is subsequently performed
 inside the remaining 80% development set by :mod:`src.train_utils`.
 """
 
 from sklearn.model_selection import train_test_split
 from .data_loader import load_dataset
+from .config import PROJECT_ROOT, DATA_DIR
 from .preprocessing import preprocess_series
 
 RANDOM_STATE = 42
@@ -36,7 +37,7 @@ def stratification_key(y, min_count=2):
     return key
 
 
-def prepare_data(data_dir="data", sample=None, verbose=True):
+def prepare_data(data_dir=DATA_DIR, sample=None, verbose=True):
     """
     Returns:
         X_dev, X_test : cleaned text (pandas Series)

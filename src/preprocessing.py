@@ -9,44 +9,28 @@ Pipeline steps:
     3. normalize evasion patterns (leetspeak, spaced-out letters, repeated chars)
     4. strip hashtag symbol, remaining digits/punctuation/special characters
     5. tokenize
-    6. remove stopwords
-    7. lemmatize (reduce words to their base form)
+    6. remove a built-in deterministic English stopword list while preserving negations
+    7. retain normalized tokens without any network-dependent lemmatization
 
-It uses NLTK when available. If NLTK data can't be downloaded (common on locked-down
-machines), it falls back to a built-in stopword list and skips lemmatization, so the
-code still runs end-to-end.
+The preprocessing is deterministic and requires no NLTK resource download at startup.
 """
 
 import re
 
 # ----------------------------------------------------------------------------
-# Try to set up NLTK; fall back gracefully if unavailable.
+# Deterministic preprocessing: no network downloads at import time.
 # ----------------------------------------------------------------------------
-_USE_NLTK = True
-try:
-    import nltk
-    from nltk.corpus import stopwords
-    from nltk.stem import WordNetLemmatizer
-    from nltk.tokenize import word_tokenize
-
-    for pkg in ["punkt", "punkt_tab", "stopwords", "wordnet", "omw-1.4"]:
-        try:
-            nltk.download(pkg, quiet=True)
-        except Exception:
-            pass
-
-    _STOPWORDS = set(stopwords.words("english"))
-    _LEMMATIZER = WordNetLemmatizer()
-except Exception:
-    _USE_NLTK = False
-    _LEMMATIZER = None
-    # Minimal fallback stopword list
-    _STOPWORDS = set("""
-        a an the and or but if while is are was were be been being to of in on for with
-        as by at from into this that these those it its i you he she we they them his her
-        their our your my me him us do does did done have has had not no nor so than too
-        very can will just don should now
-    """.split())
+# Streamlit Community Cloud may block or delay outbound NLTK downloads. The
+# detector therefore uses a built-in English stopword list and deterministic
+# rule-based normalization. NLTK is optional and is never downloaded here.
+_USE_NLTK = False
+_LEMMATIZER = None
+_STOPWORDS = set("""
+    a an the and or but if while is are was were be been being to of in on for with
+    as by at from into this that these those it its i you he she we they them his her
+    their our your my me him us do does did done have has had not no nor so than too
+    very can will just don should now am im youre hes shes were theyre ive we've
+""".split())
 
 # Negation changes the meaning of moderation text ("I hate" vs "I do not
 # hate"). Preserve these tokens even though standard stop-word lists remove

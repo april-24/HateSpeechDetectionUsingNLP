@@ -19,28 +19,43 @@ target-community outputs.
 
 ## Leakage-safe evaluation
 
-1. A stratified 20% final test set is reserved.
-2. Development-only cross-validation is used for model configuration selection.
-3. TF-IDF is fitted independently inside every training fold.
-4. Five-fold OOF probabilities from a full 80% development data are used for threshold selection.
-5. The `abusive` threshold is selected using harmful-content F1 with a minimum precision preference of 0.75; each target label gets its own OOF F1 threshold.
-6. The final pipeline is fitted on the complete development set.
-7. The selected thresholds are applied once to the untouched final test set.
+1. A stratified 20% final test set is reserved and never used for tuning.
+2. The full 80% development partition is used for **five-fold cross-validation** for LR, SVM and RF configuration selection.
+3. TF-IDF is fitted inside each training fold, so validation/test vocabulary statistics do not influence training.
+4. A separate **five-fold OOF** procedure on the full 80% development data produces probabilities for threshold selection.
+5. The `abusive` threshold is selected from the primary label's OOF predictions using harmful-content F1 with a minimum precision preference of 0.75; each target label receives its own OOF F1 threshold.
+6. The selected pipeline is fitted on the complete 80% development set.
+7. The fixed thresholds are applied once to the untouched 20% final test set.
 
-LinearSVC has no native probabilities, so it is wrapped in
-`CalibratedClassifierCV(method="sigmoid", cv=3)`. Calibration is fitted only
-inside the training-side data used by the classifier; no sigmoid is manually
-applied to raw SVM margins.
+The final model bundles and result files in this ZIP were regenerated after the five-fold changes using the deterministic preprocessing configuration.
 
 ## Final results
 
 | Model | Abusive threshold | Harmful precision | Harmful recall | Harmful F1 | Benign FPR | Multilabel micro-F1 |
 |---|---:|---:|---:|---:|---:|---:|
-| Logistic Regression | 0.53 | 0.8363 | 0.6897 | 0.7560 | 0.2124 | 0.6761 |
-| Linear SVM | 0.59 | 0.8237 | 0.7296 | **0.7738** | 0.2457 | 0.6949 |
-| Random Forest | 0.50 | **0.8511** | 0.6251 | 0.7208 | **0.1721** | 0.6202 |
+| **Logistic Regression** | **0.37** | 0.7597 | **0.8524** | **0.8034** | 0.4242 | **0.7245** |
+| Linear SVM | 0.49 | **0.7628** | 0.8451 | 0.8019 | 0.4133 | 0.7126 |
+| Random Forest | 0.47 | 0.7729 | 0.7654 | 0.7691 | **0.3538** | 0.7104 |
 
-The final primary verdict comparison selects **Linear SVM by harmful-content F1**. Random Forest has the highest primary precision and lowest benign false-positive rate, while Logistic Regression provides a strong balanced alternative. These primary metrics are separate from the six-label multilabel metrics.
+Based on the final-test **harmful-content F1**, Logistic Regression is the preferred model in this regenerated five-fold version. Random Forest has the lowest benign false-positive rate, while Logistic Regression has the highest harmful-content recall and F1.
+
+### Regression checks
+
+The required examples produce the following primary harmful-content verdicts for all three models:
+
+| Text | LR | SVM | RF |
+|---|---|---|---|
+| `you are a stupid idiot nobody likes you` | YES | YES | YES |
+| `Thanks for sharing, this was really useful!` | NO | NO | NO |
+| `go back to your own country you don't belong here` | YES | YES | YES |
+
+## Reproducibility and deployment
+
+- The project supports Python 3.11 (`runtime.txt`).
+- `scikit-learn`, NumPy, pandas, joblib, Streamlit and WordCloud are pinned in `requirements.txt`.
+- No NLTK resource is downloaded when the application starts. Text preprocessing uses deterministic built-in rules, which avoids cloud startup delays caused by network downloads.
+- All dataset, model and result paths are resolved from `src/config.py` using `Path(__file__).resolve()`. Therefore the project can be placed directly at the GitHub repository root **or inside a subfolder** without breaking paths.
+- Model training is not performed when Streamlit starts; the deployed app loads the saved model bundles from `results/`.
 
 ## Installation and use
 
@@ -55,10 +70,6 @@ python compare_models.py
 python generate_final_artifacts.py
 streamlit run app.py
 ```
-
-The saved bundles already included in `results/` contain the final fitted
-pipelines and their out-of-fold-selected thresholds, so retraining is optional
-for demonstration.
 
 ## Application pages
 

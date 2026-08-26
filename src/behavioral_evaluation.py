@@ -7,7 +7,7 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
-from .config import MODEL_FILES, PRIMARY_LABEL
+from .config import MODEL_FILES, PRIMARY_LABEL, PROJECT_ROOT, RESULTS_DIR
 from .predictor import load_model, _label_probs
 from .preprocessing import clean_text
 
@@ -32,7 +32,7 @@ def evaluate_model_cases(model_name, path, cases):
 
 
 def main():
-    cases_path = "data/behavioral_test_cases.csv"
+    cases_path = str(PROJECT_ROOT / "data" / "behavioral_test_cases.csv")
     if not os.path.exists(cases_path):
         raise FileNotFoundError(cases_path)
     cases = pd.read_csv(cases_path)
@@ -77,10 +77,10 @@ def main():
         })
     overall_df=pd.DataFrame(overall)
 
-    os.makedirs("results",exist_ok=True)
-    details.to_csv("results/behavioral_test_details.csv",index=False)
-    category_df.to_csv("results/behavioral_category_results.csv",index=False)
-    overall_df.to_csv("results/behavioral_comparison.csv",index=False)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    details.to_csv(str(RESULTS_DIR / "behavioral_test_details.csv"),index=False)
+    category_df.to_csv(str(RESULTS_DIR / "behavioral_category_results.csv"),index=False)
+    overall_df.to_csv(str(RESULTS_DIR / "behavioral_comparison.csv"),index=False)
 
     print("\nBehavioural evaluation")
     print(overall_df.to_string(index=False))

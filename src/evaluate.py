@@ -7,12 +7,14 @@ to determine the final harmful-content verdict.
 import os
 import numpy as np
 import pandas as pd
+from .config import RESULTS_DIR
+
 from sklearn.metrics import (
     accuracy_score, hamming_loss, precision_recall_fscore_support,
     classification_report, confusion_matrix
 )
 
-RESULTS_CSV = os.path.join("results", "model_scores.csv")
+RESULTS_CSV = str(RESULTS_DIR / "model_scores.csv")
 
 
 def primary_metrics(y_true, y_pred):
