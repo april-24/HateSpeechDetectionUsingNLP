@@ -1,7 +1,7 @@
 """
 data_loader.py
 --------------
-Loads the HateXplain hate/offensive content dataset (final_hateXplain.csv) and builds the
+Loads the HateXplain hate/offensive-content dataset and builds the
 MULTI-LABEL target matrix.
 
 Dataset columns (final_hateXplain.csv):
@@ -24,7 +24,9 @@ How we turn this into MULTI-LABEL:
         Sexual_Orientation   = 1 if a sexual orientation is targeted        (else 0)
         Miscellaneous        = 1 if any 'other' group is targeted           (else 0)
 
-    So the model answers: "Does this comment match the adapted abusive/hate-offensive labels, and who is it aimed at?"
+    The primary output asks whether the post is harmful. The five remaining
+    outputs describe target-community annotations and do not independently
+    create a harmful-content verdict.
     Because a comment can carry several of these at once, this is a genuine
     multi-label classification problem (5,560 comments target 2+ categories).
 """
@@ -144,8 +146,7 @@ def load_dataset(data_dir: str = "data", verbose: bool = True):
         print(df[LABEL_COLS].sum().to_string())
         n_active = df[LABEL_COLS].sum(axis=1)
         print(f"\nComments with 2+ labels (multi-label): {(n_active >= 2).sum():,}")
-        print("\nSample row:")
-        print(df.iloc[0].to_string())
+        print("\nSample row available in the Dataset Statistics page.")
 
     return df, TEXT_COL, LABEL_COLS
 

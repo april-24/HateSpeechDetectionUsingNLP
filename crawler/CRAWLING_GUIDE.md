@@ -23,7 +23,7 @@ Retrain.
 | **YouTube** (official API) | ✅ Recommended | Official, sanctioned, free, instant key |
 | **Reddit** (official API) | ⚠️ Usable, but slow to set up | As of Nov 2025, Reddit requires manual pre-approval for API access — even the free tier — which can take **2–4 weeks**. Apply early if you want this. |
 | **Public forums / news comments** (generic crawler) | ⚠️ Case-by-case | Only if the site's `robots.txt` allows it AND their Terms of Service don't prohibit it. Check both yourself before crawling any specific site. |
-| **Facebook, Instagram, X/Twitter, TikTok** | ❌ Do not scrape | Their Terms of Service explicitly prohibit automated data collection, and they block it technically. If you need comments from these platforms, copy them manually into the app's Hate/Offensive Content Detection → Enter Comment tab (small amounts only, for demo purposes). |
+| **Facebook, Instagram, X/Twitter, TikTok** | ❌ Do not scrape | Their Terms of Service explicitly prohibit automated data collection, and they block it technically. If you need comments from these platforms, copy them manually into the app's Content Detection → Enter Comment tab (small amounts only, for demo purposes). |
 
 ---
 

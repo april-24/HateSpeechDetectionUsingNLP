@@ -29,7 +29,7 @@ def main():
     counts = df[labels].sum().sort_values(ascending=False)
     plt.figure(figsize=(8, 5))
     counts.plot(kind="bar", color="#c0392b")
-    plt.title("Number of comments per hate/offensive-content label")
+    plt.title("Number of comments per harmful-content and target label")
     plt.ylabel("Count")
     plt.tight_layout()
     plt.savefig("results/eda_label_counts.png", dpi=120)
@@ -68,7 +68,7 @@ def main():
     clean = (df[labels].sum(axis=1) == 0).sum()
     print(f"\nTotal comments      : {total:,}")
     print(f"Clean (no label)    : {clean:,} ({clean/total:.1%})")
-    print(f"Harmful Content       : {total-clean:,} ({(total-clean)/total:.1%})")
+    print(f"Harmful content     : {total-clean:,} ({(total-clean)/total:.1%})")
     print("\nSaved 3 charts to results/ for your documentation.")
 
 

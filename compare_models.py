@@ -48,7 +48,7 @@ def main():
             color="#2980b9")
     plt.xticks(list(x), df["model"], rotation=15, ha="right")
     plt.ylabel("F1 score")
-    plt.title("Harmful Content detection: model comparison")
+    plt.title("Hate and offensive content detection: model comparison")
     plt.ylim(0, 1)
     plt.legend()
     plt.tight_layout()

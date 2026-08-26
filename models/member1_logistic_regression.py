@@ -5,7 +5,7 @@ Method : Logistic Regression + TF-IDF features (word + character n-grams)
 Wrapper: OneVsRestClassifier (one LR per label -> multi-label)
 
 Logistic Regression models the probability of each label with a linear decision
-boundary over the TF-IDF features. It is fast, probability estimates, and its learned
+boundary over the TF-IDF features. It is fast and its learned
 weights are easy to interpret (used later to highlight influential words).
 
 Run from the project root:

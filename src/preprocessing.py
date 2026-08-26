@@ -29,12 +29,14 @@ try:
     from nltk.stem import WordNetLemmatizer
     from nltk.tokenize import word_tokenize
 
-    # Do not attempt network downloads during training/deployment. If the
-    # required NLTK corpora are unavailable locally, fall back deterministically
-    # to the built-in stopword list and whitespace tokenisation.
+    for pkg in ["punkt", "punkt_tab", "stopwords", "wordnet", "omw-1.4"]:
+        try:
+            nltk.download(pkg, quiet=True)
+        except Exception:
+            pass
+
     _STOPWORDS = set(stopwords.words("english"))
     _LEMMATIZER = WordNetLemmatizer()
-    _ = word_tokenize("local check")
 except Exception:
     _USE_NLTK = False
     _LEMMATIZER = None
@@ -45,6 +47,11 @@ except Exception:
         their our your my me him us do does did done have has had not no nor so than too
         very can will just don should now
     """.split())
+
+# Negation changes the meaning of moderation text ("I hate" vs "I do not
+# hate"). Preserve these tokens even though standard stop-word lists remove
+# them.
+_STOPWORDS.difference_update({"no", "not", "nor", "never"})
 
 # Pre-compiled regex patterns (compiled once for speed)
 _RE_URL = re.compile(r"http\S+|www\.\S+")

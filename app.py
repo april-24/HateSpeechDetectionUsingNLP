@@ -1,12 +1,12 @@
 """
-CyberShield - Multi-Model Harmful-Content Detection System
+HarmShield - Multi-Model Harmful Content Detection System
 =========================================================
 Streamlit application. Run from the project root:
 
     streamlit run app.py
 
 Pages (top navigation bar): Home | Dataset Statistics | Data Preprocessing |
-       Hate/Offensive Content Detection | Model Evaluation
+       Content Detection | Model Evaluation
 """
 
 import os
@@ -19,28 +19,29 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from src.config import LABELS, pretty, SCORES_CSV, DATA_DIR, DEFAULT_THRESHOLDS
+from src.config import (LABELS, PRIMARY_LABEL, pretty, SCORES_CSV, DATA_DIR,
+                        DEFAULT_THRESHOLDS)
 from src.predictor import (available_models, load_model, predict,
                            explain, highlight_html, _label_probs)
 from src.preprocessing import clean_text, clean_text_steps
 from src import social
 
-st.set_page_config(page_title="CyberShield", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="HarmShield", page_icon="🛡️", layout="wide")
 
 DEFAULT_THRESHOLD = 0.50
 PAGES = ["Home", "Dataset Statistics", "Data Preprocessing",
-         "Hate/Offensive Content Detection", "Model Evaluation"]
+         "Content Detection", "Model Evaluation"]
 
 MODEL_INFO = {
     "Logistic Regression": {
         "feature_method": "TF-IDF (unigrams + bigrams, 30,000 features)",
         "algorithm_type": "Linear classifier (One-vs-Rest, one per label)",
-        "note": "Fast fitted probabilities and relatively interpretable coefficients.",
+        "note": "Fast fitted probabilities and directly interpretable coefficients.",
     },
     "Linear SVM": {
         "feature_method": "TF-IDF (unigrams + bigrams, 30,000 features)",
         "algorithm_type": "Maximum-margin linear classifier (One-vs-Rest)",
-        "note": "Strong on high-dimensional sparse text; no native probability output.",
+        "note": "Strong on sparse text; probabilities use cross-validated sigmoid calibration.",
     },
     "Random Forest": {
         "feature_method": "TF-IDF (unigrams, 8,000 features)",
@@ -86,6 +87,15 @@ def get_model(path):
     return load_model(path)
 
 
+def selected_threshold(model_name):
+    """Read the OOF-selected threshold saved with the trained model bundle."""
+    path = MODELS.get(model_name)
+    if path:
+        return float(get_model(path).get(
+            "threshold", DEFAULT_THRESHOLDS.get(model_name, DEFAULT_THRESHOLD)))
+    return DEFAULT_THRESHOLDS.get(model_name, DEFAULT_THRESHOLD)
+
+
 @st.cache_data(show_spinner=False)
 def get_dataset():
     from src.data_loader import load_dataset
@@ -100,22 +110,15 @@ def analyze_many(bundle, texts, threshold):
     rows = []
     for i, t in enumerate(texts):
         probs = {l: float(P[i][j]) for j, l in enumerate(labels)}
-        flagged = [l for l in labels if probs[l] >= threshold]
-        top_score = max(probs.values())
-        # Confidence always reflects certainty in the VERDICT SHOWN, in both
-        # directions - if flagged, higher = more sure the comment matches the adapted harmful-content labels (the
-        # raw top score already means this). If clean, higher = more sure
-        # it's clean, i.e. how far the top score sits below the threshold
-        # (1 - top_score) - NOT the raw top score itself, which would
-        # misleadingly look like low confidence for an obviously clean
-        # comment (e.g. a 5% top score is very confidently clean, not
-        # "5% confident").
-        confidence = top_score if flagged else (1 - top_score)
+        raw_flagged = [l for l in labels if probs[l] >= threshold]
+        is_harmful = PRIMARY_LABEL in raw_flagged
+        flagged = raw_flagged if is_harmful else []
+        primary_probability = probs[PRIMARY_LABEL]
         rows.append({
             "Comment": t,
-            "Harmful Content": "YES" if flagged else "NO",
+            "Harmful content": "YES" if is_harmful else "NO",
             "Categories": ", ".join(pretty(l) for l in flagged) or "-",
-            "Confidence": round(confidence, 3),
+            "Primary probability": round(primary_probability, 3),
             **{pretty(l): round(probs[l], 3) for l in labels},
         })
     return pd.DataFrame(rows)
@@ -123,18 +126,18 @@ def analyze_many(bundle, texts, threshold):
 
 
 def suggested_action(res):
-    if not res["is_flagged"]:
+    if not res["is_harmful"]:
         return ("✅ **No action needed.** This comment doesn't cross the "
                 "detection threshold. If the conversation continues, it may "
                 "be worth a quick re-check later, especially if the tone shifts.")
-    top_conf = max(res["probs"].values())
+    top_conf = res["probs"][PRIMARY_LABEL]
     cats = [pretty(l) for l in res["flagged"] if l != "abusive"]
     lines = []
     if top_conf >= 0.80:
-        lines.append("⚠️ **High confidence detection** — this is worth acting on.")
+        lines.append("⚠️ **High predicted probability** — prioritise human review.")
     else:
-        lines.append("🟡 **Moderate confidence** — have a human double-check "
-                     "before acting, since the model isn't fully certain.")
+        lines.append("🟡 **Moderate predicted probability** — have a human "
+                     "review the post before taking action.")
     lines.append("**Suggested next steps:**")
     lines.append("- Save or screenshot the comment as evidence before it can "
                  "be edited or deleted.")
@@ -158,12 +161,12 @@ def suggested_action(res):
 
 def batch_suggestion(df):
     n = len(df)
-    n_bad = int((df["Harmful Content"] == "YES").sum())
+    n_bad = int((df["Harmful content"] == "YES").sum())
     if n == 0:
         return ""
     rate = n_bad / n
     if n_bad == 0:
-        return "✅ **No harmful-content label crossed the threshold in this batch.** No action needed."
+        return "✅ **No harmful content detected in this batch.** No action needed."
     msg = f"⚠️ **{n_bad} of {n} comments ({rate:.0%}) were flagged.**\n\n"
     if rate >= 0.3:
         msg += ("This is a high proportion — consider reviewing the source "
@@ -172,42 +175,37 @@ def batch_suggestion(df):
                "or platform trust & safety team before it escalates.")
     else:
         msg += ("Review the flagged rows individually before taking action "
-               "— sort by the **Confidence** column to prioritise the most "
+               "— sort by the **Primary probability** column to prioritise the most "
                "serious ones first.")
     msg += "\n\nKeep evidence (screenshots/exports) of anything you plan to report."
     return msg
 
 
 def result_card(res, threshold, model_name, elapsed, original_text):
-    if res["is_flagged"]:
+    if res["is_harmful"]:
         st.error("### ⚠️ HARMFUL CONTENT DETECTED")
     else:
-        st.success("### ✅ No harmful-content label crossed the threshold")
+        st.success("### ✅ No harmful content detected")
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Model used", model_name)
-    top_score = max(res["probs"].values())
-    # Same logic as analyze_many(): higher always means "more confident in
-    # the verdict shown", in both directions - not just the raw top score,
-    # which would misleadingly look like low confidence for a clearly clean
-    # comment (e.g. a 5% top score is very confidently clean, not "5% sure").
-    top_confidence = top_score if res["is_flagged"] else (1 - top_score)
-    c2.metric("Top confidence", f"{top_confidence:.1%}")
+    primary_probability = res["probs"][PRIMARY_LABEL]
+    c2.metric("Harmful-content probability", f"{primary_probability:.1%}")
     c3.metric("Processing time", f"{elapsed*1000:.0f} ms")
 
     if res["flagged"]:
         st.write("**Categories detected:**")
         for l in res["flagged"]:
-            st.markdown(f"- **{pretty(l)}** — {res['probs'][l]:.1%} confidence")
+            st.markdown(f"- **{pretty(l)}** — {res['probs'][l]:.1%} predicted probability")
 
-    st.write("**Confidence by category:**")
+    st.write("**Predicted probability by output:**")
     for l in LABELS:
         p = res["probs"].get(l, 0.0)
         st.write(f"{pretty(l)} — {p:.1%}")
         st.progress(min(max(p, 0.0), 1.0))
 
     if res["words"]:
-        st.write("**Influential words highlighted:**")
+        st.write("**Strongest contributing words highlighted:**")
         st.markdown(
             f"<div style='padding:10px;border:1px solid rgba(128,128,128,0.4);border-radius:6px'>"
             f"{highlight_html(original_text, res['words'])}</div>",
@@ -224,11 +222,11 @@ def result_card(res, threshold, model_name, elapsed, original_text):
 def summary_charts(df):
     c1, c2 = st.columns(2)
     with c1:
-        counts = df["Harmful Content"].value_counts()
+        counts = df["Harmful content"].value_counts()
         fig, ax = plt.subplots(figsize=(4, 4))
         ax.pie(counts.values, labels=counts.index, autopct="%1.1f%%",
                colors=["#c0392b" if i == "YES" else "#27ae60" for i in counts.index])
-        ax.set_title("Flagged vs Not Flagged")
+        ax.set_title("Harmful Content vs Clean")
         st.pyplot(fig); plt.close(fig)
     with c2:
         cat_cols = [pretty(l) for l in LABELS]
@@ -264,13 +262,13 @@ def page_controls(show_model=True, show_threshold=True, key_prefix=""):
         # others.
         if new_model != st.session_state.sel_model:
             st.session_state.sel_model = new_model
-            new_default = DEFAULT_THRESHOLDS.get(new_model, 0.5)
+            new_default = selected_threshold(new_model)
             st.session_state.sel_threshold = new_default
             st.session_state[f"{key_prefix}_threshold"] = new_default
         else:
             st.session_state.sel_model = new_model
     if show_threshold:
-        model_default = DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)
+        model_default = selected_threshold(st.session_state.sel_model)
         with cols[i]:
             st.session_state.sel_threshold = st.slider(
                 "Detection sensitivity", 0.20, 0.90,
@@ -278,7 +276,7 @@ def page_controls(show_model=True, show_threshold=True, key_prefix=""):
                 help=f"Lower = flags more comments (higher recall). Higher = "
                      f"stricter (higher precision). This model's evidence-based "
                      f"default is {model_default:.2f} — it's pre-selected when "
-                     f"you pick this model. Official reported metrics use the fixed cross-validation-selected threshold for this model.")
+                     f"you pick this model. Official reported metrics use 0.50.")
     st.write("")
 
 
@@ -359,12 +357,11 @@ if "page" not in st.session_state:
 if "sel_model" not in st.session_state:
     st.session_state.sel_model = list(MODELS.keys())[0]
 if "sel_threshold" not in st.session_state:
-    st.session_state.sel_threshold = DEFAULT_THRESHOLDS.get(
-        st.session_state.sel_model, DEFAULT_THRESHOLD)
+    st.session_state.sel_threshold = selected_threshold(st.session_state.sel_model)
 
 logo_col, *nav_cols = st.columns([2.2] + [1] * len(PAGES))
 with logo_col:
-    st.markdown("**🛡️ CyberShield**")
+    st.markdown("**🛡️ HarmShield**")
 for i, p in enumerate(PAGES):
     with nav_cols[i]:
         label = f"**{p}**" if st.session_state.page == p else p
@@ -378,35 +375,33 @@ page = st.session_state.page
 
 # ============================================================== Home
 if page == "Home":
-    st.title("🛡️ CyberShield")
-    st.caption("Multi-model NLP system for detecting adapted harmful-content and target-community labels")
+    st.title("🛡️ HarmShield")
+    st.caption("Multi-model NLP system for hate and offensive content detection")
 
     st.markdown("### Project Introduction")
     st.write("""
-Hate and offensive content can spread rapidly through social-media and other
-digital platforms. CyberShield was built to identify potentially harmful text
-automatically using Natural Language Processing (NLP), while also indicating
-which target-community labels are associated with the content.
+Hate and offensive content can be produced at a scale that makes manual review
+difficult. HarmShield uses Natural Language Processing (NLP) to prioritise
+potentially harmful posts for human review and to identify the communities that
+the language appears to target.
 """)
 
     st.markdown("### Project Objectives")
     st.markdown("""
-1. Detect whether a given comment matches the adapted abusive/harmful-content labels.
+1. Detect whether a given comment contains hate or offensive content.
 2. Identify **which group is targeted** (race, religion, gender, etc.), not just yes/no.
 3. Implement and fairly **compare three different NLP models** on the same data.
 4. Evaluate model performance using standard classification metrics.
 5. Provide an explanation and a suggested next step for every prediction.
 """)
 
-    st.info("This prototype is aligned to HateXplain: a hate/offensive-content dataset with target-community annotations. The outputs should be interpreted as adapted content and target indicators, not as a direct measurement of intent or repeated behaviour.")
-
     st.markdown("### NLP Task")
     st.write("""
-CyberShield frames the task as a **multi-label text classification**
-problem — specifically **multi-label** classification, since one comment can
-belong to more than one category at once (e.g. abusive *and* targeting race).
-**Input:** a raw comment (free text). **Output:** six independent yes/no
-predictions, one per category, each with a confidence score.
+HarmShield uses **multi-output text classification**. The primary output states
+whether a post is harmful. Five secondary outputs identify possible target
+communities. A target-community score never creates a harmful verdict by itself.
+**Input:** raw text. **Output:** a harmful-content probability and supporting
+target-community probabilities.
 """)
 
     st.markdown("### Implemented NLP Models")
@@ -429,7 +424,7 @@ predictions, one per category, each with a confidence score.
 
     st.markdown("### Explore")
     nc = st.columns(4)
-    targets = ["Dataset Statistics", "Data Preprocessing", "Hate/Offensive Content Detection", "Model Evaluation"]
+    targets = ["Dataset Statistics", "Data Preprocessing", "Content Detection", "Model Evaluation"]
     descs = ["See the data behind the models", "See how raw text becomes model input",
             "Try the detector yourself", "Compare model performance"]
     for i, (t, d) in enumerate(zip(targets, descs)):
@@ -666,9 +661,9 @@ elif page == "Data Preprocessing":
     st.dataframe(preview, width="stretch")
 
 
-# ============================================================== Hate/Offensive Content Detection
-elif page == "Hate/Offensive Content Detection":
-    st.title("Hate/Offensive Content Detection")
+# ============================================================== Content Detection
+elif page == "Content Detection":
+    st.title("Hate and Offensive Content Detection")
     page_controls(show_model=True, show_threshold=True, key_prefix="detect")
     bundle = get_model(MODELS[st.session_state.sel_model])
     threshold = st.session_state.sel_threshold
@@ -706,19 +701,19 @@ elif page == "Hate/Offensive Content Detection":
             else:
                 st.write(f"Analyzing **{len(lines)}** comments with **{model_name}**...")
                 df_res = analyze_many(bundle, lines, threshold)
-                n_bad = (df_res["Harmful Content"] == "YES").sum()
+                n_bad = (df_res["Harmful content"] == "YES").sum()
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Total", len(df_res))
                 c2.metric("Flagged", int(n_bad))
                 c3.metric("Clean", int(len(df_res) - n_bad))
-                st.dataframe(df_res[["Comment", "Harmful Content", "Categories",
-                                     "Confidence"]], width="stretch")
+                st.dataframe(df_res[["Comment", "Harmful content", "Categories",
+                                     "Primary probability"]], width="stretch")
                 summary_charts(df_res)
                 st.markdown("#### 🧭 Suggested next step")
                 st.markdown(batch_suggestion(df_res))
                 st.download_button("Download results (CSV)",
                                    df_res.to_csv(index=False).encode(),
-                                   "cybershield_results.csv", "text/csv")
+                                   "harmshield_results.csv", "text/csv")
 
     # ---- Tab 2: Import CSV ----
     with tab2:
@@ -746,7 +741,7 @@ elif page == "Hate/Offensive Content Detection":
                 if st.button("Analyze file", type="primary"):
                     with st.spinner("Analyzing..."):
                         df_res = analyze_many(bundle, texts, threshold)
-                    n_bad = (df_res["Harmful Content"] == "YES").sum()
+                    n_bad = (df_res["Harmful content"] == "YES").sum()
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Total", len(df_res))
                     c2.metric("Flagged", int(n_bad))
@@ -818,13 +813,13 @@ elif page == "Hate/Offensive Content Detection":
 
             if st.button("Analyze comments", type="primary", key="analyze_social"):
                 df_res = analyze_many(bundle, comments, threshold)
-                n_bad = (df_res["Harmful Content"] == "YES").sum()
+                n_bad = (df_res["Harmful content"] == "YES").sum()
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Analyzed", len(df_res))
                 c2.metric("Flagged", int(n_bad))
                 c3.metric("Flag rate", f"{n_bad/len(df_res):.0%}")
-                st.dataframe(df_res[["Comment", "Harmful Content", "Categories",
-                                     "Confidence"]], width="stretch")
+                st.dataframe(df_res[["Comment", "Harmful content", "Categories",
+                                     "Primary probability"]], width="stretch")
                 summary_charts(df_res)
                 st.markdown("#### 🧭 Suggested next step")
                 st.markdown(batch_suggestion(df_res))
@@ -857,26 +852,22 @@ elif page == "Model Evaluation":
         rows = []
         for name, path in MODELS.items():
             b = get_model(path)
-            model_threshold = DEFAULT_THRESHOLDS.get(name, 0.5)
+            model_threshold = selected_threshold(name)
             t0 = time.time()
             r = predict(b, text, threshold=model_threshold)
-            top_score = max(r["probs"].values())
-            # Same verdict-aware logic as elsewhere: higher always means
-            # "more confident in THIS model's own verdict", not just the
-            # raw top score (which looks backwards for a "Clean" verdict).
-            top_confidence = top_score if r["is_flagged"] else (1 - top_score)
+            primary_probability = r["probs"][PRIMARY_LABEL]
             rows.append({
                 "Model": name,
                 "Threshold used": model_threshold,
-                "Prediction": "HATE/OFFENSIVE CONTENT" if r["is_flagged"] else "No Flag",
+                "Prediction": "HARMFUL" if r["is_harmful"] else "Clean",
                 "Categories": ", ".join(pretty(l) for l in r["flagged"]) or "-",
-                "Top confidence": round(top_confidence, 3),
+                "Harmful-content probability": round(primary_probability, 3),
                 "Time (ms)": round((time.time() - t0) * 1000, 1),
                 **{pretty(l): round(r["probs"][l], 3) for l in LABELS},
             })
         cmp = pd.DataFrame(rows)
         st.dataframe(cmp[["Model", "Threshold used", "Prediction", "Categories",
-                          "Top confidence", "Time (ms)"]], width="stretch")
+                          "Harmful-content probability", "Time (ms)"]], width="stretch")
         st.bar_chart(cmp.set_index("Model")[[pretty(l) for l in LABELS]].T)
         if cmp["Prediction"].nunique() > 1:
             st.warning("The models disagree on this comment.")
@@ -891,11 +882,14 @@ elif page == "Model Evaluation":
 
     with st.expander("ℹ️ Why does each model use a different detection threshold?"):
         st.markdown("""
-The thresholds used by the deployed models were selected **only through cross-validation inside the 80% training data** using out-of-fold micro-F1. The final 20% test set was kept untouched until the thresholds were fixed. The deployed model files store these frozen thresholds.
+Each threshold is selected from pooled **out-of-fold predictions** generated
+by five-fold cross-validation on the 80% development set. The final 20% test
+set is not used for model selection or threshold selection. The threshold is
+saved inside the trained model bundle and applied without further adjustment.
 
-The thresholds are model-specific because Logistic Regression, Linear SVM and Random Forest produce scores on different scales. The deployed application stores the selected threshold with each model and uses the same fixed threshold during prediction.
-
-The **Gender** and **Miscellaneous** labels remain the weakest categories, so thresholding alone cannot eliminate false positives or false negatives caused by class imbalance and label ambiguity.
+Different thresholds are appropriate because the fitted pipelines produce
+differently distributed probabilities. A threshold must not be transferred
+between models or retuned after viewing final test results.
 """)
 
     if not os.path.exists(SCORES_CSV):
@@ -918,7 +912,7 @@ The **Gender** and **Miscellaneous** labels remain the weakest categories, so th
         with st.spinner("Running the model over the test set..."):
             X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
             P = _label_probs(bundle["pipeline"], list(X_test))
-            pred = (P >= float(bundle.get("threshold", DEFAULT_THRESHOLDS.get(st.session_state.sel_model, 0.5)))).astype(int)
+            pred = (P >= 0.5).astype(int)
         cols = st.columns(3)
         for i, l in enumerate(labels):
             cm = confusion_matrix(y_test.values[:, i], pred[:, i])
@@ -959,11 +953,10 @@ The **Gender** and **Miscellaneous** labels remain the weakest categories, so th
 - **Fastest to predict:** {fastest_predict}
 
 **Strengths & weaknesses:**
-- **Logistic Regression** — fast, strong overall balance, with fitted probability estimates; a
+- **Logistic Regression** — fast, interpretable and strong overall; a
   solid default choice.
-- **Linear SVM** — competitive accuracy, but no native probability estimates
-  (confidence is derived, not directly modeled) and slightly lower recall on
-  rarer categories.
+- **Linear SVM** — competitive on sparse TF-IDF features; its native margins
+  are converted to probabilities using cross-validated sigmoid calibration.
 - **Random Forest** — often the highest raw accuracy and precision, at the
   cost of noticeably slower training and prediction, and a smaller
   vocabulary (to keep the saved model a reasonable size).

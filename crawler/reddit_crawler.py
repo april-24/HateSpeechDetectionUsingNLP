@@ -41,7 +41,7 @@ from datetime import datetime
 # ---------------------------------------------------------------- SETTINGS
 REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID", "PASTE_YOUR_CLIENT_ID")
 REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET", "PASTE_YOUR_SECRET")
-REDDIT_USER_AGENT = "CyberShield-Assignment/1.0 (educational project)"
+REDDIT_USER_AGENT = "HarmShield-Assignment/1.0 (educational project)"
 
 # English-language subreddits chosen for topics likely to surface Gender and
 # Miscellaneous (refugee/disability/other-targeted-hate) relevant comments -

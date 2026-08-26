@@ -46,7 +46,7 @@ import urllib.parse
 from datetime import datetime
 
 # ---------------------------------------------------------------- SETTINGS
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "AIzaSyCQoumnsgNBTL_z2aNwjd3jIGsadjRlQo4")
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "PASTE_YOUR_KEY_HERE")
 
 # Neutral, topic-based English-language queries chosen to naturally surface
 # heated comment sections specifically around Gender and Miscellaneous
@@ -80,7 +80,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def api_get(endpoint, params):
     params["key"] = YOUTUBE_API_KEY
     url = f"https://www.googleapis.com/youtube/v3/{endpoint}?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"User-Agent": "CyberShield-Assignment/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "HarmShield-Assignment/1.0"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode("utf-8"))
 

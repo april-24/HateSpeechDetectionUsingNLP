@@ -28,7 +28,7 @@ import json
 import urllib.request
 import urllib.parse
 
-USER_AGENT = "CyberShield-Assignment/1.0 (educational project)"
+USER_AGENT = "HarmShield-Assignment/2.0 (educational project)"
 
 
 # --------------------------------------------------------------------------

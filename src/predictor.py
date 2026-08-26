@@ -4,16 +4,16 @@ predictor.py
 The prediction engine used by the Streamlit app. It loads a saved model bundle
 and, for a given comment, returns:
     - per-label probability / confidence
-    - the binary prediction using the selected decision threshold
+    - the binary prediction at the model's saved OOF-selected threshold
     - the words that most influenced the decision (for highlighting)
     - a short plain-English explanation
 
 Works for all three models:
     Logistic Regression / Random Forest -> predict_proba
-    Linear SVM (no predict_proba)        -> decision_function squashed to 0..1
+    Linear SVM                           -> calibrated predict_proba
 Word influence:
     linear models -> signed coefficients (coef_)
-    random forest -> feature importances
+    random forest -> omitted because global importance is not a local explanation
 """
 
 import os
@@ -21,7 +21,7 @@ import numpy as np
 import joblib
 
 from .preprocessing import clean_text
-from .config import LABELS, pretty, MODEL_FILES
+from .config import LABELS, PRIMARY_LABEL, pretty, MODEL_FILES
 
 
 def available_models():
@@ -42,8 +42,6 @@ def load_model(path):
     (n_jobs=1) evaluation of a single row is typically faster in practice.
     """
     bundle = joblib.load(path)
-    if "threshold" not in bundle:
-        bundle["threshold"] = 0.50
     try:
         clf = bundle["pipeline"].named_steps.get("clf")
         estimators = getattr(clf, "estimators_", None) or []
@@ -56,15 +54,10 @@ def load_model(path):
 
 
 def _label_probs(pipeline, texts):
-    """Return an (n_texts, n_labels) array of probabilities in 0..1."""
-    try:
-        return np.asarray(pipeline.predict_proba(texts))
-    except (AttributeError, RuntimeError):
-        # Linear SVM: squash the signed distance with a logistic function.
-        d = np.asarray(pipeline.decision_function(texts))
-        if d.ndim == 1:
-            d = d.reshape(1, -1)
-        return 1.0 / (1.0 + np.exp(-d))
+    """Return calibrated/fitted probabilities; never squash raw margins."""
+    if not hasattr(pipeline, "predict_proba"):
+        raise TypeError("Saved model has no predicted probabilities; retrain it with calibration.")
+    return np.asarray(pipeline.predict_proba(texts))
 
 
 def predict(bundle, text, threshold=0.5):
@@ -74,7 +67,7 @@ def predict(bundle, text, threshold=0.5):
         probs   : {label: probability}
         preds   : {label: 0/1}
         flagged : list of labels predicted positive
-        is_flagged: bool (any label positive)
+        is_harmful: bool (the primary harmful-content label is positive)
         words   : list of influential words (for highlighting)
     """
     labels = bundle["labels"]
@@ -84,7 +77,11 @@ def predict(bundle, text, threshold=0.5):
     p = _label_probs(pipe, [cleaned])[0]
     probs = {lab: float(p[i]) for i, lab in enumerate(labels)}
     preds = {lab: int(p[i] >= threshold) for i, lab in enumerate(labels)}
-    flagged = [lab for lab in labels if preds[lab] == 1]
+    is_harmful = bool(preds.get(PRIMARY_LABEL, 0))
+    raw_flagged = [lab for lab in labels if preds[lab] == 1]
+    # Target-community outputs provide context. They must never create a
+    # harmful-content verdict by themselves.
+    flagged = raw_flagged if is_harmful else []
 
     words = _influential_words(pipe, cleaned, labels, flagged)
 
@@ -92,9 +89,11 @@ def predict(bundle, text, threshold=0.5):
         "probs": probs,
         "preds": preds,
         "flagged": flagged,
-        "is_flagged": len(flagged) > 0,
+        "is_harmful": is_harmful,
+        "raw_flagged": raw_flagged,
         "words": words,
         "cleaned": cleaned,
+        "threshold": threshold,
     }
 
 
@@ -150,10 +149,21 @@ def _influential_words(pipeline, cleaned, labels, flagged, top_k=8):
     contrib = np.zeros(len(feat_names))
     for i in idxs:
         est = clf.estimators_[i]
-        if hasattr(est, "coef_"):                 # LR / LinearSVC
+        if hasattr(est, "coef_"):                 # Logistic Regression
             w_full = np.asarray(est.coef_).ravel()
-        elif hasattr(est, "feature_importances_"):  # Random Forest
-            w_full = est.feature_importances_
+        elif hasattr(est, "calibrated_classifiers_"):  # calibrated LinearSVC
+            coef_rows = [
+                np.asarray(cal.estimator.coef_).ravel()
+                for cal in est.calibrated_classifiers_
+                if hasattr(cal.estimator, "coef_")
+            ]
+            if not coef_rows:
+                continue
+            w_full = np.mean(coef_rows, axis=0)
+        elif hasattr(est, "feature_importances_"):
+            # Global forest importances are not local explanations and must
+            # not be presented as words that drove this individual result.
+            return []
         else:
             continue
         w = w_full[start:end]             # slice out just the word-feature weights
@@ -190,14 +200,14 @@ def highlight_html(original_text, influential_words):
 
 def explain(result):
     """Build a short plain-English explanation of the prediction."""
-    if not result["is_flagged"]:
-        return ("No hate/offensive content detected. None of the category scores crossed "
-                "the 0.5 threshold, so the comment reads as non-abusive.")
+    if not result["is_harmful"]:
+        return ("No harmful content detected. The primary harmful-content "
+                f"probability did not cross the {result['threshold']:.2f} threshold.")
     cats = [pretty(l) for l in result["flagged"]]
     words = result["words"]
     msg = "Flagged as " + ", ".join(cats) + "."
     if words:
-        msg += " The prediction was driven mainly by the word(s): " + \
+        msg += " The strongest contributing word(s) were: " + \
                ", ".join(words[:5]) + "."
     else:
         msg += (" No single word dominated — the decision came from the overall "

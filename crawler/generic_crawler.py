@@ -43,7 +43,7 @@ TARGETS = [
     # {"url": "https://example-forum.com/thread/123", "selector": "div.post-message"},
 ]
 
-USER_AGENT = "CyberShield-Assignment-Bot/1.0 (educational project; contact: your_email@example.com)"
+USER_AGENT = "HarmShield-Assignment-Bot/1.0 (educational project; contact: your_email@example.com)"
 REQUEST_DELAY = 2.0     # seconds between page requests - be polite
 OUTPUT_CSV = "data/crawled/generic_raw.csv"
 

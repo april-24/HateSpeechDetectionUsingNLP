@@ -30,7 +30,7 @@ import glob
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="CyberShield - Annotation Tool", page_icon="🏷️", layout="centered")
+st.set_page_config(page_title="HarmShield - Annotation Tool", page_icon="🏷️", layout="centered")
 
 RAW_DIR = "data/crawled"
 LABELS = ["Race", "Religion", "Gender", "Sexual_Orientation", "Miscellaneous"]
@@ -52,7 +52,7 @@ def load_progress(out_path):
     return pd.DataFrame(columns=["comment", "abusive"] + LABELS)
 
 
-st.title("🏷️ CyberShield Annotation Tool")
+st.title("🏷️ HarmShield Annotation Tool")
 st.caption("Manually label crawled comments so they can be added to the training data. "
           "You don't need to label all of them - even a modest batch counts.")
 
@@ -91,7 +91,7 @@ st.markdown("### Comment to label")
 st.markdown(f"> {row['comment']}")
 
 with st.form("label_form", clear_on_submit=True):
-    is_abusive = st.radio("Is this comment abusive or hate/offensive?",
+    is_abusive = st.radio("Does this comment contain hateful or offensive content?",
                           ["No", "Yes"], horizontal=True)
     st.write("If yes, which group(s) does it target? (tick any that apply)")
     cols = st.columns(len(LABELS))

@@ -42,7 +42,7 @@ RESULTS_CSV = os.path.join("results", "model_scores.csv")
 
 
 def evaluate_model(name, y_true, y_pred, label_names,
-                   train_time=None, predict_time=None, threshold=None, validation_f1=None):
+                   train_time=None, predict_time=None):
     """Print a full multi-label report and return headline metrics as a dict.
 
     train_time / predict_time (seconds, optional): pass these in from the
@@ -103,11 +103,6 @@ def evaluate_model(name, y_true, y_pred, label_names,
         result["train_time_sec"] = round(train_time, 3)
     if predict_time is not None:
         result["predict_time_sec"] = round(predict_time, 4)
-
-    if threshold is not None:
-        result["threshold"] = round(float(threshold), 2)
-    if validation_f1 is not None:
-        result["validation_micro_f1"] = round(float(validation_f1), 4)
 
     # stash per-label accuracy too (not written to the summary CSV row, but
     # returned so the app / a report script can show a per-category table)

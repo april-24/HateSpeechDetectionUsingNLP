@@ -6,8 +6,9 @@ Wrapper: OneVsRestClassifier (one SVM per label -> multi-label)
 
 An SVM finds the separating hyperplane with the widest margin between classes.
 On sparse high-dimensional TF-IDF text this linear SVM is a strong, fast baseline.
-It has no predict_proba, so the app derives a confidence score from the signed
-distance to the boundary (decision_function).
+The LinearSVC is wrapped in cross-validated sigmoid calibration so that the
+application can display predicted probabilities without pretending that a
+simple logistic transform of the raw margin is calibrated.
 
 Run from the project root:
     python -m models.member2_svm
@@ -18,6 +19,7 @@ import os
 import sys
 import argparse
 from sklearn.svm import LinearSVC
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 
@@ -32,7 +34,8 @@ def build_pipeline():
     return Pipeline([
         ("features", build_word_char_features(word_max_features=30000,
                                               char_max_features=10000)),
-        ("clf", OneVsRestClassifier(LinearSVC(C=1.0, class_weight="balanced"))),
+        ("clf", OneVsRestClassifier(CalibratedClassifierCV(
+            LinearSVC(C=1.0, class_weight="balanced"), method="sigmoid", cv=3))),
     ])
 
 

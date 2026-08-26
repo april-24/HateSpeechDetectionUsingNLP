@@ -8,17 +8,18 @@ so every part of the system (training, evaluation, Streamlit app) stays consiste
 # The 6 binary labels produced by src/data_loader.py (order matters).
 LABELS = ["abusive", "Race", "Religion", "Gender",
           "Sexual_Orientation", "Miscellaneous"]
+PRIMARY_LABEL = "abusive"
 
 # Friendly names shown in the user interface. These map directly onto the labels
 # the HateXplain dataset actually provides — we do NOT invent categories the data
 # was never labelled for (e.g. 'profanity', 'threat' are not separate labels here).
 DISPLAY_NAMES = {
-    "abusive":            "Abusive / Harmful Content",
+    "abusive":            "Harmful Content",
     "Race":               "Race Target",
     "Religion":           "Religion Target",
     "Gender":             "Gender Target",
-    "Sexual_Orientation": "Sexual Orientation Target",
-    "Miscellaneous":      "Other Target",
+    "Sexual_Orientation": "Sexual-Orientation Target",
+    "Miscellaneous":      "Other Community Target",
 }
 
 # Model registry: display name -> saved file in results/
@@ -28,27 +29,13 @@ MODEL_FILES = {
     "Random Forest":       "results/model_rf.joblib",
 }
 
-# Per-model default detection thresholds. NOT arbitrary - each was found by
-# selecting thresholds by cross-validation within the 80% training data and then freezing them before final test evaluation
-# that maximizes micro-F1 for THAT model (verified against the exact trained
-# models currently in results/ - re-run this sweep any time a model is
-# retrained, since the right threshold shifts if the model itself changes).
-#
-# Why per-model at all: a single shared threshold (e.g. 0.60) implicitly
-# assumes all models' probability outputs mean the same thing, but they
-# don't. Random Forest's predict_proba (ensemble vote fraction) sits on a
-# different natural scale than Logistic Regression's directly-fitted
-# probability, even when equally correct. Sharing one threshold penalizes
-# some models far more than others; measured impact of forcing a shared 0.60
-# on the models currently shipped in results/:
-#   Logistic Regression : 2-fold CV OOF micro-F1 0.6987 at threshold 0.48
-#   Linear SVM           : 2-fold CV OOF micro-F1 0.6785 at threshold 0.48
-#   Random Forest        : 2-fold CV OOF micro-F1 0.6956 at threshold 0.46
+# These fallbacks are overwritten by thresholds saved inside newly trained
+# model bundles. They are selected from pooled out-of-fold predictions on the
+# 80% development set, never from the final test set.
 DEFAULT_THRESHOLDS = {
-    # Updated automatically after leakage-safe validation calibration.
     "Logistic Regression": 0.48,
-    "Linear SVM": 0.48,
-    "Random Forest": 0.46,
+    "Linear SVM": 0.31,
+    "Random Forest": 0.48,
 }
 
 SCORES_CSV = "results/model_scores.csv"

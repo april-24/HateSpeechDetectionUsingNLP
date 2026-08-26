@@ -1,22 +1,43 @@
-"""Recompute model-specific thresholds using CV on the 80% training data only."""
-import joblib
-from .common import prepare_data
-from .train_utils import select_threshold_cv
+"""
+threshold_sweep.py
+-------------------
+Displays thresholds selected from five-fold pooled out-of-fold predictions
+during training. It never re-selects thresholds on the final test set.
 
-MODELS = {
-    "Logistic Regression": "results/model_lr.joblib",
-    "Linear SVM": "results/model_svm.joblib",
-    "Random Forest": "results/model_rf.joblib",
-}
+Why this matters: different algorithms produce probability-like scores on
+different natural scales, even when equally correct. Forcing every model to
+share one threshold (e.g. 0.60) can badly under-serve some of them - on this
+project's models, Random Forest's F1 dropped from 0.70 (at its own best
+threshold) to 0.56 when forced to share a 0.60 cutoff with the others.
+
+Run this any time you retrain a model - the right threshold is specific to
+that exact trained model, not to the algorithm in general, so it can shift
+if you retrain (e.g. after merging in more data).
+
+Run from the project root:
+    python -m src.threshold_sweep
+"""
+
+from .predictor import available_models, load_model
 
 
-def main():
-    X_train, X_test, y_train, y_test, labels = prepare_data(verbose=False)
-    for name, path in MODELS.items():
-        bundle = joblib.load(path)
-        th, f1 = select_threshold_cv(bundle["pipeline"], X_train, y_train)
-        print(f"{name:22s} CV threshold={th:.2f} OOF_micro-F1={f1:.4f}")
+def sweep():
+    print(f"{'Model':22s} {'OOF threshold':15s} {'Selection source'}")
+    results = {}
+    for name, path in available_models().items():
+        bundle = load_model(path)
+        threshold = float(bundle.get("threshold", 0.5))
+        source = bundle.get("threshold_source", "unknown")
+        results[name] = threshold
+        print(f"{name:22s} {threshold:<15.2f} {source}")
+
+    print("\nCopy this into DEFAULT_THRESHOLDS in src/config.py:")
+    print("DEFAULT_THRESHOLDS = {")
+    for name, th in results.items():
+        print(f'    "{name}": {th},')
+    print("}")
+    return results
 
 
 if __name__ == "__main__":
-    main()
+    sweep()
