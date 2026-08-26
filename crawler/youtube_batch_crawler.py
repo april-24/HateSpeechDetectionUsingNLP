@@ -46,7 +46,7 @@ import urllib.parse
 from datetime import datetime
 
 # ---------------------------------------------------------------- SETTINGS
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "PASTE_YOUR_KEY_HERE")
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "AIzaSyCQoumnsgNBTL_z2aNwjd3jIGsadjRlQo4")
 
 # Neutral, topic-based English-language queries chosen to naturally surface
 # heated comment sections specifically around Gender and Miscellaneous
