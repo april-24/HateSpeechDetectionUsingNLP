@@ -1,19 +1,19 @@
 model,case_type,text,threshold,harmful_probability,predicted_harmful,expected_harmful
-Logistic Regression,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.37,0.3990743984331304,1,1
-Logistic Regression,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.37,0.5203144689239887,1,1
-Logistic Regression,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.37,0.39902625605765185,1,1
-Logistic Regression,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.37,0.5477620766842235,1,1
-Logistic Regression,obfuscated_harmful,people like y0u should leave this place,0.37,0.2586859416900134,0,1
-Logistic Regression,obfuscated_harmful,"you are w0rthless, get out of here",0.37,0.4473097286703447,1,1
-Linear SVM,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.49,0.5299710710306558,1,1
-Linear SVM,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.49,0.534220774742931,1,1
-Linear SVM,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.49,0.516101507307715,1,1
-Linear SVM,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.49,0.7087787502154738,1,1
-Linear SVM,obfuscated_harmful,people like y0u should leave this place,0.49,0.36183059084352376,0,1
-Linear SVM,obfuscated_harmful,"you are w0rthless, get out of here",0.49,0.6109228714814753,1,1
-Random Forest,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.47,0.544416915891541,1,1
-Random Forest,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.47,0.4804390035950992,1,1
-Random Forest,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.47,0.4701007495410335,1,1
-Random Forest,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.47,0.4701007495410335,1,1
-Random Forest,obfuscated_harmful,people like y0u should leave this place,0.47,0.48120337962663406,1,1
-Random Forest,obfuscated_harmful,"you are w0rthless, get out of here",0.47,0.4815130070106756,1,1
+Logistic Regression,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.37,0.45954944769186223,1,1
+Logistic Regression,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.37,0.49141245910059794,1,1
+Logistic Regression,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.37,0.4121777156327335,1,1
+Logistic Regression,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.37,0.641904862808804,1,1
+Logistic Regression,obfuscated_harmful,people like y0u should leave this place,0.37,0.2596928941697632,0,1
+Logistic Regression,obfuscated_harmful,"you are w0rthless, get out of here",0.37,0.3856772840477441,1,1
+Linear SVM,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.49,0.6116210213053516,1,1
+Linear SVM,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.49,0.5546182564559613,1,1
+Linear SVM,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.49,0.5954955025371297,1,1
+Linear SVM,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.49,0.7540219643245267,1,1
+Linear SVM,obfuscated_harmful,people like y0u should leave this place,0.49,0.3551213376872395,0,1
+Linear SVM,obfuscated_harmful,"you are w0rthless, get out of here",0.49,0.47485686777300956,0,1
+Random Forest,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.46,0.4859639978780845,1,1
+Random Forest,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.46,0.4958774509273205,1,1
+Random Forest,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.46,0.4730625988207273,1,1
+Random Forest,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.46,0.4730625988207273,1,1
+Random Forest,obfuscated_harmful,people like y0u should leave this place,0.46,0.48551841517289723,1,1
+Random Forest,obfuscated_harmful,"you are w0rthless, get out of here",0.46,0.4764471538490579,1,1
