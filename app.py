@@ -22,25 +22,23 @@ import matplotlib.pyplot as plt
 from src.config import (LABELS, PRIMARY_LABEL, pretty, SCORES_CSV, DATA_DIR,
                         DEFAULT_THRESHOLDS)
 from src.predictor import (available_models, load_model, predict,
-                           explain, highlight_html, _label_probs, get_thresholds)
-from src.train_utils import apply_thresholds
+                           explain, highlight_html, _label_probs)
 from src.preprocessing import clean_text, clean_text_steps
 from src import social
 
 st.set_page_config(page_title="HarmShield", page_icon="🛡️", layout="wide")
 
-DEFAULT_THRESHOLD = 0.50
 PAGES = ["Home", "Dataset Statistics", "Data Preprocessing",
          "Content Detection", "Model Evaluation"]
 
 MODEL_INFO = {
     "Logistic Regression": {
-        "feature_method": "TF-IDF (unigrams + bigrams, 30,000 features)",
+        "feature_method": "TF-IDF word n-grams (1-3), up to 8,000 features",
         "algorithm_type": "Linear classifier (One-vs-Rest, one per label)",
         "note": "Fast fitted probabilities and directly interpretable coefficients.",
     },
     "Linear SVM": {
-        "feature_method": "TF-IDF (unigrams + bigrams, 30,000 features)",
+        "feature_method": "TF-IDF word n-grams (1-3), up to 8,000 features",
         "algorithm_type": "Maximum-margin linear classifier (One-vs-Rest)",
         "note": "Strong on sparse text; probabilities use cross-validated sigmoid calibration.",
     },
@@ -88,16 +86,23 @@ def get_model(path):
     return load_model(path)
 
 
-def selected_thresholds(model_name):
-    """Read the OOF-selected per-label thresholds from the saved bundle."""
+def selected_threshold(model_name):
     path = MODELS.get(model_name)
     if path:
-        return get_thresholds(get_model(path), model_name=model_name)
-    return DEFAULT_THRESHOLDS.get(model_name, {l: 0.5 for l in LABELS})
+        b = get_model(path)
+        return float(b.get("thresholds", {}).get(
+            PRIMARY_LABEL, get_default_thresholds(model_name)[PRIMARY_LABEL]))
+    return float(get_default_thresholds(model_name)[PRIMARY_LABEL])
 
 
-def primary_threshold(model_name):
-    return float(selected_thresholds(model_name).get(PRIMARY_LABEL, 0.5))
+def selected_thresholds(model_name):
+    path = MODELS.get(model_name)
+    defaults = get_default_thresholds(model_name)
+    if path:
+        saved = get_model(path).get("thresholds", {})
+        return {label: float(saved.get(label, defaults.get(label, 0.5)))
+                for label in LABELS}
+    return defaults
 
 
 @st.cache_data(show_spinner=False)
@@ -107,45 +112,33 @@ def get_dataset():
     return df, text_col, labels
 
 
-def analyze_many(bundle, texts, thresholds=None):
-    """Bulk prediction using the saved six-label threshold dictionary."""
-    labels = bundle["labels"]
-    if thresholds is None:
-        thresholds = get_thresholds(bundle)
+def analyze_many(bundle, texts, threshold=None):
     cleaned = [clean_text(t) for t in texts]
     P = _label_probs(bundle["pipeline"], cleaned)
+    labels = bundle["labels"]
+    thresholds = bundle["thresholds"]
     rows = []
     for i, t in enumerate(texts):
         probs = {l: float(P[i][j]) for j, l in enumerate(labels)}
-        preds = {l: int(probs[l] >= float(thresholds.get(l, 0.5))) for l in labels}
-        is_harmful = bool(preds.get(PRIMARY_LABEL, 0))
-        target_flags = [l for l in labels if l != PRIMARY_LABEL and preds[l] == 1]
+        preds = {l: int(probs[l] >= float(thresholds[l])) for l in labels}
+        is_harmful = bool(preds[PRIMARY_LABEL])
+        target_flags = [l for l in labels if l != PRIMARY_LABEL and preds[l]]
         flagged = target_flags if is_harmful else []
-        primary_probability = probs[PRIMARY_LABEL]
-        borderline = (not is_harmful and bool(target_flags) and
-                      primary_probability >= max(0.0, float(thresholds[PRIMARY_LABEL]) - 0.08))
-        decision = "HARMFUL" if is_harmful else ("NEEDS_REVIEW" if borderline else "CLEAN")
         rows.append({
             "Comment": t,
-            "Harmful content": "YES" if is_harmful else ("NEEDS REVIEW" if borderline else "NO"),
+            "Harmful content": "YES" if is_harmful else "NO",
             "Categories": ", ".join(pretty(l) for l in flagged) or "-",
-            "Primary probability": round(primary_probability, 3),
+            "Primary probability": round(probs[PRIMARY_LABEL], 3),
             "Primary threshold": round(float(thresholds[PRIMARY_LABEL]), 3),
-            "Decision": decision,
             **{pretty(l): round(probs[l], 3) for l in labels},
         })
     return pd.DataFrame(rows)
 
 
-
 def suggested_action(res):
-    if res.get("borderline_review"):
-        return ("🟠 **Human review recommended.** The harmful-content score is close to "
-                "the model's primary threshold and a target-community output is positive. "
-                "Review the surrounding context before taking action.")
     if not res["is_harmful"]:
         return ("✅ **No action needed.** This comment doesn't cross the "
-                "harmful-content threshold. If the conversation continues, it may "
+                "detection threshold. If the conversation continues, it may "
                 "be worth a quick re-check later, especially if the tone shifts.")
     top_conf = res["probs"][PRIMARY_LABEL]
     cats = [pretty(l) for l in res["flagged"] if l != "abusive"]
@@ -179,16 +172,12 @@ def suggested_action(res):
 def batch_suggestion(df):
     n = len(df)
     n_bad = int((df["Harmful content"] == "YES").sum())
-    n_review = int((df["Harmful content"] == "NEEDS REVIEW").sum())
     if n == 0:
         return ""
     rate = n_bad / n
-    if n_bad == 0 and n_review == 0:
+    if n_bad == 0:
         return "✅ **No harmful content detected in this batch.** No action needed."
-    msg = f"⚠️ **{n_bad} of {n} comments ({rate:.0%}) were flagged as harmful.**"
-    if n_review:
-        msg += f" **{n_review}** additional comment(s) need human review."
-    msg += "\n\n"
+    msg = f"⚠️ **{n_bad} of {n} comments ({rate:.0%}) were flagged.**\n\n"
     if rate >= 0.3:
         msg += ("This is a high proportion — consider reviewing the source "
                "(video, thread, or file) more closely, and if it's an "
@@ -205,8 +194,6 @@ def batch_suggestion(df):
 def result_card(res, model_name, elapsed, original_text):
     if res["is_harmful"]:
         st.error("### ⚠️ HARMFUL CONTENT DETECTED")
-    elif res.get("borderline_review"):
-        st.warning("### 🟠 NEEDS HUMAN REVIEW")
     else:
         st.success("### ✅ No harmful content detected")
 
@@ -215,11 +202,19 @@ def result_card(res, model_name, elapsed, original_text):
     primary_probability = res["probs"][PRIMARY_LABEL]
     c2.metric("Harmful-content probability", f"{primary_probability:.1%}")
     c3.metric("Processing time", f"{elapsed*1000:.0f} ms")
-    st.caption(f"Primary harmful probability: {res['primary_probability']:.1%} | "
-               f"Primary OOF threshold: {res['primary_threshold']:.2f}")
 
+    st.write("**Target-group predictions (context only):**")
+    target_rows = []
+    for l, value in res["target_predictions"].items():
+        target_rows.append({
+            "Target label": pretty(l),
+            "Prediction": "YES" if value else "NO",
+            "Probability": f"{res['probs'][l]:.1%}",
+            "Threshold": f"{res['thresholds'][l]:.2f}",
+        })
+    st.dataframe(pd.DataFrame(target_rows), hide_index=True, width="stretch")
     if res["flagged"]:
-        st.write("**Categories detected:**")
+        st.write("**Target groups associated with the harmful result:**")
         for l in res["flagged"]:
             st.markdown(f"- **{pretty(l)}** — {res['probs'][l]:.1%} predicted probability")
 
@@ -237,15 +232,14 @@ def result_card(res, model_name, elapsed, original_text):
             unsafe_allow_html=True)
 
     st.info(f"**Why this result?** {explain(res)}")
-    st.caption("Each output uses its own OOF-selected threshold. The harmful-content "
-               "YES/NO verdict is controlled only by the `abusive` threshold. "
-               "The target labels provide context.")
+    st.caption(f"Fixed harmful-content rule: abusive probability {res["harmful_probability"]:.1%} vs threshold {res["harmful_threshold"]:.2f}. "
+               "Target-group thresholds are separate and contextual.")
 
     st.markdown("#### 🧭 Suggested next step")
     st.markdown(suggested_action(res))
 
 
-def summary_charts(df, thresholds=None):
+def summary_charts(df, bundle=None):
     c1, c2 = st.columns(2)
     with c1:
         counts = df["Harmful content"].value_counts()
@@ -256,28 +250,34 @@ def summary_charts(df, thresholds=None):
         st.pyplot(fig); plt.close(fig)
     with c2:
         cat_cols = [pretty(l) for l in LABELS]
-        flags = pd.Series({
-            pretty(l): int((df[pretty(l)] >= float((thresholds or {}).get(l, 0.5))).sum())
-            for l in LABELS
-        })
+        if bundle is not None:
+            thresholds = bundle["thresholds"]
+            flags = pd.Series({
+                pretty(l): int((df[pretty(l)] >= float(thresholds[l])).sum())
+                for l in LABELS
+            })
+        else:
+            flags = (df[cat_cols] >= 0.5).sum()
         fig, ax = plt.subplots(figsize=(5, 4))
         flags.plot(kind="barh", ax=ax, color="#c0392b")
         ax.set_title("Detections per category")
         st.pyplot(fig); plt.close(fig)
 
 
-def page_controls(show_model=True, show_threshold=False, key_prefix=""):
-    """Model selector. Thresholds are saved with the model and not used as a report-tuning control."""
+def page_controls(show_model=True, key_prefix=""):
     if not show_model:
         return
-    new_model = st.selectbox(
-        "Model", list(MODELS.keys()),
-        index=list(MODELS.keys()).index(st.session_state.sel_model),
+    models_list = list(MODELS.keys())
+    st.session_state.sel_model = st.selectbox(
+        "Model", models_list,
+        index=models_list.index(st.session_state.sel_model),
         key=f"{key_prefix}_model",
-        help="Choose which trained model performs the detection.")
-    st.session_state.sel_model = new_model
-    th = selected_thresholds(new_model)
-    st.caption("Saved OOF thresholds: " + ", ".join(f"{pretty(k)}={v:.2f}" for k, v in th.items()))
+        help="Choose the trained model. Its saved OOF-selected thresholds are fixed.")
+    primary_th = selected_threshold(st.session_state.sel_model)
+    st.caption(
+        f"Fixed evaluation rule: **abusive ≥ {primary_th:.2f} → YES; otherwise NO**. "
+        "The threshold is selected from development-only out-of-fold predictions and cannot be changed here.")
+    st.write("")
 
 
 def detect_quality_issues(df, text_col):
@@ -662,9 +662,9 @@ elif page == "Data Preprocessing":
 # ============================================================== Content Detection
 elif page == "Content Detection":
     st.title("Hate and Offensive Content Detection")
-    page_controls(show_model=True, show_threshold=False, key_prefix="detect")
+    page_controls(show_model=True, key_prefix="detect")
     bundle = get_model(MODELS[st.session_state.sel_model])
-    thresholds = get_thresholds(bundle, model_name=st.session_state.sel_model)
+    threshold = float(bundle["thresholds"][PRIMARY_LABEL])
     model_name = st.session_state.sel_model
 
     tab1, tab2, tab3 = st.tabs(["✍️ Enter Comment", "📁 Import CSV", "🌐 Social Media URL"])
@@ -694,11 +694,11 @@ elif page == "Content Detection":
                 st.warning("Please enter at least one comment.")
             elif len(lines) == 1:
                 t0 = time.time()
-                res = predict(bundle, lines[0], model_name=model_name)
+                res = predict(bundle, lines[0])
                 result_card(res, model_name, time.time() - t0, lines[0])
             else:
                 st.write(f"Analyzing **{len(lines)}** comments with **{model_name}**...")
-                df_res = analyze_many(bundle, lines, thresholds)
+                df_res = analyze_many(bundle, lines)
                 n_bad = (df_res["Harmful content"] == "YES").sum()
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Total", len(df_res))
@@ -706,7 +706,7 @@ elif page == "Content Detection":
                 c3.metric("Clean", int(len(df_res) - n_bad))
                 st.dataframe(df_res[["Comment", "Harmful content", "Categories",
                                      "Primary probability"]], width="stretch")
-                summary_charts(df_res, thresholds)
+                summary_charts(df_res, bundle)
                 st.markdown("#### 🧭 Suggested next step")
                 st.markdown(batch_suggestion(df_res))
                 st.download_button("Download results (CSV)",
@@ -738,14 +738,14 @@ elif page == "Content Detection":
 
                 if st.button("Analyze file", type="primary"):
                     with st.spinner("Analyzing..."):
-                        df_res = analyze_many(bundle, texts, thresholds)
+                        df_res = analyze_many(bundle, texts)
                     n_bad = (df_res["Harmful content"] == "YES").sum()
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Total", len(df_res))
                     c2.metric("Flagged", int(n_bad))
                     c3.metric("Flag rate", f"{n_bad/max(len(df_res),1):.0%}")
                     st.dataframe(df_res, width="stretch")
-                    summary_charts(df_res, thresholds)
+                    summary_charts(df_res, bundle)
                     st.markdown("#### 🧭 Suggested next step")
                     st.markdown(batch_suggestion(df_res))
                     st.download_button("Download full results (CSV)",
@@ -810,7 +810,7 @@ elif page == "Content Detection":
                     st.write("-", c)
 
             if st.button("Analyze comments", type="primary", key="analyze_social"):
-                df_res = analyze_many(bundle, comments, thresholds)
+                df_res = analyze_many(bundle, comments)
                 n_bad = (df_res["Harmful content"] == "YES").sum()
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Analyzed", len(df_res))
@@ -818,7 +818,7 @@ elif page == "Content Detection":
                 c3.metric("Flag rate", f"{n_bad/len(df_res):.0%}")
                 st.dataframe(df_res[["Comment", "Harmful content", "Categories",
                                      "Primary probability"]], width="stretch")
-                summary_charts(df_res, thresholds)
+                summary_charts(df_res, bundle)
                 st.markdown("#### 🧭 Suggested next step")
                 st.markdown(batch_suggestion(df_res))
                 st.download_button("Download results (CSV)",
@@ -850,21 +850,21 @@ elif page == "Model Evaluation":
         rows = []
         for name, path in MODELS.items():
             b = get_model(path)
-            model_thresholds = get_thresholds(b, model_name=name)
+            model_threshold = selected_threshold(name)
             t0 = time.time()
-            r = predict(b, text, model_name=name)
+            r = predict(b, text)
             primary_probability = r["probs"][PRIMARY_LABEL]
             rows.append({
                 "Model": name,
-                "Primary threshold": model_thresholds[PRIMARY_LABEL],
-                "Prediction": "HARMFUL" if r["is_harmful"] else ("Needs Review" if r.get("borderline_review") else "Clean"),
+                "Threshold used": model_threshold,
+                "Prediction": "HARMFUL" if r["is_harmful"] else "Clean",
                 "Categories": ", ".join(pretty(l) for l in r["flagged"]) or "-",
                 "Harmful-content probability": round(primary_probability, 3),
                 "Time (ms)": round((time.time() - t0) * 1000, 1),
                 **{pretty(l): round(r["probs"][l], 3) for l in LABELS},
             })
         cmp = pd.DataFrame(rows)
-        st.dataframe(cmp[["Model", "Primary threshold", "Prediction", "Categories",
+        st.dataframe(cmp[["Model", "Threshold used", "Prediction", "Categories",
                           "Harmful-content probability", "Time (ms)"]], width="stretch")
         st.bar_chart(cmp.set_index("Model")[[pretty(l) for l in LABELS]].T)
         if cmp["Prediction"].nunique() > 1:
@@ -880,12 +880,16 @@ elif page == "Model Evaluation":
 
     with st.expander("ℹ️ Why does each model use a different detection threshold?"):
         st.markdown("""
-Each label has its own threshold selected from pooled **out-of-fold predictions**
-generated by three-fold cross-validation on the 80% development set. The final
-20% test set is not used for model selection or threshold selection. The
-primary `abusive` threshold is selected independently of the five target-group
-thresholds and is the only threshold that controls the harmful-content YES/NO
-verdict.
+Each model stores **six thresholds**, selected from pooled out-of-fold
+predictions on the 80% development set. The `abusive` threshold is selected
+using only the primary harmful-content F1 objective; each target-community
+threshold is selected independently using that label's F1. The final 20% test
+set is never used for threshold selection.
+
+Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender,
+Sexual Orientation and Miscellaneous are contextual target predictions and
+can never turn a NO into YES. The UI therefore does not provide a manual
+threshold slider.
 """)
 
     if not os.path.exists(SCORES_CSV):
@@ -893,11 +897,9 @@ verdict.
         st.stop()
 
     scores = pd.read_csv(SCORES_CSV)
-    display_cols = ["model", "primary_threshold", "primary_accuracy",
-                    "primary_precision", "primary_recall", "primary_f1",
-                    "primary_false_positive_rate", "primary_false_negative_rate",
-                    "accuracy", "f1_micro", "f1_macro",
-                    "train_time_sec", "predict_time_sec"]
+    display_cols = ["model", "accuracy", "subset_accuracy",
+                    "precision_macro", "recall_macro", "f1_macro",
+                    "f1_weighted", "train_time_sec", "predict_time_sec"]
     display_cols = [c for c in display_cols if c in scores.columns]
     st.dataframe(scores[display_cols], width="stretch")
 
@@ -910,8 +912,7 @@ verdict.
         with st.spinner("Running the model over the test set..."):
             X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
             P = _label_probs(bundle["pipeline"], list(X_test))
-            bundle_thresholds = get_thresholds(bundle, model_name=st.session_state.sel_model)
-            pred = apply_thresholds(P, bundle_thresholds, labels)
+            pred = np.column_stack([P[:, i] >= float(bundle["thresholds"][labels[i]]) for i in range(len(labels))]).astype(int)
         cols = st.columns(3)
         for i, l in enumerate(labels):
             cm = confusion_matrix(y_test.values[:, i], pred[:, i])
@@ -941,13 +942,17 @@ verdict.
 
     st.markdown("### Overall Evaluation Summary")
     best_acc = scores.loc[scores["accuracy"].idxmax(), "model"]
-    best_f1 = scores.loc[scores["f1_macro"].idxmax(), "model"]
-    fastest_train = scores.loc[scores["train_time_sec"].idxmin(), "model"] if "train_time_sec" in scores else None
-    fastest_predict = scores.loc[scores["predict_time_sec"].idxmin(), "model"] if "predict_time_sec" in scores else None
+    best_f1 = scores.loc[scores["harmful_f1"].idxmax(), "model"]
+    fastest_train = (scores.dropna(subset=["train_time_sec"]).loc[
+        scores.dropna(subset=["train_time_sec"])["train_time_sec"].idxmin(), "model"]
+        if "train_time_sec" in scores and scores["train_time_sec"].notna().any() else "Not recorded")
+    fastest_predict = (scores.dropna(subset=["predict_time_sec"]).loc[
+        scores.dropna(subset=["predict_time_sec"])["predict_time_sec"].idxmin(), "model"]
+        if "predict_time_sec" in scores and scores["predict_time_sec"].notna().any() else "Not recorded")
 
     st.markdown(f"""
 - **Highest accuracy:** {best_acc}
-- **Best macro-F1 (balanced across categories):** {best_f1}
+- **Best primary harmful-content F1:** {best_f1}
 - **Fastest to train:** {fastest_train}
 - **Fastest to predict:** {fastest_predict}
 

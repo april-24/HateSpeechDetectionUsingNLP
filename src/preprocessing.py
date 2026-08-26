@@ -59,6 +59,24 @@ _RE_HTML = re.compile(r"<.*?>")
 _RE_NONALPHA = re.compile(r"[^a-z\s]")
 _RE_SPACES = re.compile(r"\s+")
 
+# Normalise common contractions BEFORE punctuation is stripped so negation is
+# preserved consistently in every model (e.g. "don't" -> "do not").
+_CONTRACTIONS = {
+    "can't": "cannot", "won't": "will not", "wouldn't": "would not",
+    "couldn't": "could not", "shouldn't": "should not",
+    "isn't": "is not", "aren't": "are not", "wasn't": "was not",
+    "weren't": "were not", "don't": "do not", "doesn't": "does not",
+    "didn't": "did not", "hasn't": "has not", "haven't": "have not",
+    "hadn't": "had not", "mustn't": "must not", "mightn't": "might not",
+    "shan't": "shall not", "you'd": "you would", "we'd": "we would",
+    "they'd": "they would", "i'd": "i would", "you'll": "you will",
+    "we'll": "we will", "they'll": "they will", "i'll": "i will",
+}
+_RE_CONTRACTION = re.compile(
+    r"\b(" + "|".join(re.escape(k) for k in sorted(_CONTRACTIONS, key=len, reverse=True)) + r")\b"
+)
+
+
 # ----------------------------------------------------------------------------
 # Evasion-pattern normalization
 # ----------------------------------------------------------------------------
@@ -158,9 +176,10 @@ def normalize_evasion(text: str) -> str:
 
 def clean_text(text: str) -> str:
     """Apply the full cleaning + normalization pipeline to a single string."""
-    text = str(text).lower()
+    text = str(text).lower().replace("’", "'")
     text = _RE_URL.sub(" ", text)
     text = _RE_HTML.sub(" ", text)
+    text = _RE_CONTRACTION.sub(lambda m: _CONTRACTIONS[m.group(1)], text)
     text = normalize_evasion(text)
     text = text.replace("#", " ")
     text = _RE_NONALPHA.sub(" ", text)          # keep letters only
@@ -196,8 +215,11 @@ def clean_text_steps(text: str) -> dict:
     original = str(text)
     steps = {"0. Original": original}
 
-    s = original.lower()
+    s = original.lower().replace("’", "'")
     steps["1. Lowercase"] = s
+
+    s = _RE_CONTRACTION.sub(lambda m: _CONTRACTIONS[m.group(1)], s)
+    steps["1b. Expand contractions / preserve negation"] = s
 
     s = _RE_URL.sub(" ", s)
     s = _RE_HTML.sub(" ", s)

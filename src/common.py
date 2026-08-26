@@ -1,7 +1,7 @@
 """Shared data preparation for a leakage-safe model comparison.
 
 The final 20% test set is created once and is never used for model selection
-or threshold selection.  Five-fold cross-validation is subsequently performed
+or threshold selection.  Three-fold cross-validation is subsequently performed
 inside the remaining 80% development set by :mod:`src.train_utils`.
 """
 

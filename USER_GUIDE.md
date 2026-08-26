@@ -11,28 +11,21 @@ streamlit run app.py
 ## Select a model
 
 The application provides Logistic Regression, calibrated Linear SVM, and
-Random Forest. When a model is selected, the saved six-label threshold
-configuration is loaded from its model bundle. Thresholds were selected from
-OOF predictions on the development set, not from the final test set.
+Random Forest. When a model is selected, its decision threshold is read from
+the saved model bundle. Each threshold was selected using three-fold
+out-of-fold predictions on the development set, not the final test set.
 
-The Content Detection page does **not** let a manual slider alter the official
-reported operating point. This avoids confusing a demonstration threshold with
-an evaluated result.
+There is no sensitivity/threshold slider. The evaluated threshold is fixed so the same decision rule is used during demonstration and batch analysis.
 
 ## Interpret an output
 
 - **Harmful-content probability** is the primary moderation output.
-- The primary `abusive` threshold controls the harmful-content YES/NO verdict.
-- Each target-community label has its own threshold, so their decisions are
-  not forced to use the same cutoff.
+- A post is flagged only when this primary probability crosses the threshold.
 - Target-community probabilities are supporting outputs. They indicate which
   community the language may concern; they cannot create a harmful verdict by
   themselves.
-- Borderline cases can be shown as **Needs Human Review** when the harmful
-  probability is close to its primary threshold and a target-community output
-  is also positive.
 - Highlighted words are model contributions rather than causes. They are
-  available for linear models. Random Forest highlighting is intentionally
+  available for the linear models. Random Forest highlighting is intentionally
   disabled because its global feature importance is not a local explanation.
 
 ## Pages
@@ -61,14 +54,13 @@ Use one of three tabs:
 2. **Import CSV** - select a text column and analyse rows in a file.
 3. **Social Media URL** - use supported public integrations where configured.
 
-All three paths use exactly the same per-label threshold logic. Always review
-flagged or borderline posts manually before acting.
+Always review flagged posts manually before acting.
 
 ### Model Evaluation
 
-Shows primary harmful-content metrics separately from multilabel metrics and
-allows side-by-side model predictions. Official metrics come from the
-untouched 20% final test set using the fixed thresholds saved with each model.
+Shows final-test metrics and side-by-side model predictions. Official metrics
+come from the untouched 20% final test set using the threshold saved with each
+model.
 
 ## Safety and limitations
 
@@ -77,3 +69,28 @@ does not understand user relationships, repeated behaviour, sarcasm, cultural
 context, or the complete conversation. It can generate false positives and
 false negatives. Use it to prioritise human review, not to punish users
 automatically.
+
+
+## Fixed harmful-content decision
+
+The Content Detection page uses the trained model's saved OOF-selected thresholds. There is **no manual threshold slider**.
+
+Only the `abusive` probability determines the final result:
+
+**YES** when `abusive probability >= abusive threshold`; otherwise **NO**.
+
+Race, Religion, Gender, Sexual Orientation and Miscellaneous are displayed as separate target-group context. Their individual thresholds do not independently create a YES result.
+
+The same fixed rule is used for single comments, imported CSV/TXT files and crawled/social-media comments.
+
+The displayed primary probability and primary threshold are separate fields so the decision can be explained and reproduced.
+
+## Regression examples
+
+The final system should return the following primary harmful-content verdicts for all three trained models:
+
+- `you are a stupid idiot nobody likes you` -> **YES**
+- `Thanks for sharing, this was really useful!` -> **NO**
+- `go back to your own country you don't belong here` -> **YES**
+
+These are regression checks only. They are not used to select the threshold.

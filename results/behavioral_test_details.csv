@@ -1,0 +1,145 @@
+category,text,expected_harmful,expected_output,model,harmful_probability,abusive_threshold,predicted_harmful,predicted_output,correct
+direct_insult,you are a stupid idiot nobody likes you,1,YES,Logistic Regression,0.5544348909294377,0.53,1,YES,True
+direct_insult,you are a pathetic loser and a complete fool,1,YES,Logistic Regression,0.74482340451654,0.53,1,YES,True
+direct_insult,shut up you disgusting idiot,1,YES,Logistic Regression,0.7733037235789728,0.53,1,YES,True
+direct_insult,what a worthless moron you are,1,YES,Logistic Regression,0.7633921097593499,0.53,1,YES,True
+direct_insult,you are an annoying piece of trash,1,YES,Logistic Regression,0.8948555096857402,0.53,1,YES,True
+direct_insult,"nobody wants you here, idiot",1,YES,Logistic Regression,0.5741406792120843,0.53,1,YES,True
+implicit_attack,go back to your own country you don't belong here,1,YES,Logistic Regression,0.5364363453076819,0.53,1,YES,True
+implicit_attack,people like you should leave this place,1,YES,Logistic Regression,0.37387687985835383,0.53,0,NO,False
+implicit_attack,we don't need your kind around here,1,YES,Logistic Regression,0.5348186259558542,0.53,1,YES,True
+implicit_attack,keep your kind out of our community,1,YES,Logistic Regression,0.4247154794392337,0.53,0,NO,False
+implicit_attack,someone like you has no place here,1,YES,Logistic Regression,0.4375975879977872,0.53,0,NO,False
+implicit_attack,why don't you people just go somewhere else,1,YES,Logistic Regression,0.5181945809319316,0.53,0,NO,False
+benign_compliment,"Thanks for sharing, this was really useful!",0,NO,Logistic Regression,0.35945180091510665,0.53,0,NO,True
+benign_compliment,Your explanation was clear and helpful.,0,NO,Logistic Regression,0.4693242710299797,0.53,0,NO,True
+benign_compliment,I really appreciate your thoughtful comment.,0,NO,Logistic Regression,0.5347267884540131,0.53,1,YES,False
+benign_compliment,That was a great contribution to the discussion.,0,NO,Logistic Regression,0.3352736124189171,0.53,0,NO,True
+benign_compliment,Thank you for taking the time to explain this.,0,NO,Logistic Regression,0.348153976425375,0.53,0,NO,True
+benign_compliment,I enjoyed reading your perspective.,0,NO,Logistic Regression,0.29824848402584336,0.53,0,NO,True
+benign_identity_discussion,The Muslim community organised a food donation drive.,0,NO,Logistic Regression,0.2218099337215002,0.53,0,NO,True
+benign_identity_discussion,Women participated in the leadership meeting.,0,NO,Logistic Regression,0.12643586703399276,0.53,0,NO,True
+benign_identity_discussion,The race begins at nine in the morning.,0,NO,Logistic Regression,0.5075121529914844,0.53,0,NO,True
+benign_identity_discussion,The Christian community held a charity event.,0,NO,Logistic Regression,0.18863495542894254,0.53,0,NO,True
+benign_identity_discussion,The report discusses discrimination against immigrants.,0,NO,Logistic Regression,0.41436654355657687,0.53,0,NO,True
+benign_identity_discussion,Students from different countries shared their traditions.,0,NO,Logistic Regression,0.21198342635638587,0.53,0,NO,True
+quotation,The article quotes someone saying 'you are a stupid idiot'.,0,NO,Logistic Regression,0.5425153089153649,0.53,1,YES,False
+quotation,She reported the message: 'go back to your own country'.,0,NO,Logistic Regression,0.4513071887029748,0.53,0,NO,True
+quotation,The moderator removed a comment that called users idiots.,0,NO,Logistic Regression,0.731954614665394,0.53,1,YES,False
+quotation,He wrote about the phrase 'people like you don't belong here'.,0,NO,Logistic Regression,0.4479983339141842,0.53,0,NO,True
+quotation,The documentary discusses hateful language used online.,0,NO,Logistic Regression,0.33845475980198986,0.53,0,NO,True
+quotation,The teacher asked us to analyse an offensive sentence.,0,NO,Logistic Regression,0.27702977929000505,0.53,0,NO,True
+negation,I am not stupid and I know how to solve this.,0,NO,Logistic Regression,0.48152957180820977,0.53,0,NO,True
+negation,I don't hate anyone in this community.,0,NO,Logistic Regression,0.2510108191981277,0.53,0,NO,True
+negation,This post is not attacking anyone.,0,NO,Logistic Regression,0.39866942102475855,0.53,0,NO,True
+negation,Calling someone an idiot is not acceptable.,0,NO,Logistic Regression,0.23766161310274347,0.53,0,NO,True
+negation,I never said that those people are worthless.,0,NO,Logistic Regression,0.2835168436827141,0.53,0,NO,True
+negation,We should not insult people for their identity.,0,NO,Logistic Regression,0.23296497117253326,0.53,0,NO,True
+obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,1,YES,Logistic Regression,0.5544348909294377,0.53,1,YES,True
+obfuscated_harmful,"go b4ck to your own country, you don't belong here",1,YES,Logistic Regression,0.5364363453076819,0.53,1,YES,True
+obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,1,YES,Logistic Regression,0.6200134847302355,0.53,1,YES,True
+obfuscated_harmful,you are an 1d10t and a pathetic loser,1,YES,Logistic Regression,0.7980974511599878,0.53,1,YES,True
+obfuscated_harmful,people like y0u should leave this place,1,YES,Logistic Regression,0.37387687985835383,0.53,0,NO,False
+obfuscated_harmful,"you are w0rthless, get out of here",1,YES,Logistic Regression,0.6691751518303749,0.53,1,YES,True
+hate_target,women are too stupid to lead,1,YES,Logistic Regression,0.4952380812556491,0.53,0,NO,False
+hate_target,gay people are disgusting,1,YES,Logistic Regression,0.377481508875904,0.53,0,NO,False
+hate_target,Muslims are all violent and should leave,1,YES,Logistic Regression,0.33997605786541546,0.53,0,NO,False
+hate_target,that race is inferior to everyone else,1,YES,Logistic Regression,0.7331939396444446,0.53,1,YES,True
+hate_target,people of that religion are filthy,1,YES,Logistic Regression,0.6711528682346822,0.53,1,YES,True
+hate_target,those immigrants are parasites,1,YES,Logistic Regression,0.41797864213603764,0.53,0,NO,False
+direct_insult,you are a stupid idiot nobody likes you,1,YES,Linear SVM,0.6043542088143953,0.59,1,YES,True
+direct_insult,you are a pathetic loser and a complete fool,1,YES,Linear SVM,0.7910661001594539,0.59,1,YES,True
+direct_insult,shut up you disgusting idiot,1,YES,Linear SVM,0.8246510649358855,0.59,1,YES,True
+direct_insult,what a worthless moron you are,1,YES,Linear SVM,0.7993436371566981,0.59,1,YES,True
+direct_insult,you are an annoying piece of trash,1,YES,Linear SVM,0.9127014362594631,0.59,1,YES,True
+direct_insult,"nobody wants you here, idiot",1,YES,Linear SVM,0.6898073697638057,0.59,1,YES,True
+implicit_attack,go back to your own country you don't belong here,1,YES,Linear SVM,0.5929400982467626,0.59,1,YES,True
+implicit_attack,people like you should leave this place,1,YES,Linear SVM,0.4586518439005484,0.59,0,NO,False
+implicit_attack,we don't need your kind around here,1,YES,Linear SVM,0.6179236539648368,0.59,1,YES,True
+implicit_attack,keep your kind out of our community,1,YES,Linear SVM,0.49567914449053224,0.59,0,NO,False
+implicit_attack,someone like you has no place here,1,YES,Linear SVM,0.5443723329206186,0.59,0,NO,False
+implicit_attack,why don't you people just go somewhere else,1,YES,Linear SVM,0.583659183470969,0.59,0,NO,False
+benign_compliment,"Thanks for sharing, this was really useful!",0,NO,Linear SVM,0.4356654772377659,0.59,0,NO,True
+benign_compliment,Your explanation was clear and helpful.,0,NO,Linear SVM,0.5830977505809374,0.59,0,NO,True
+benign_compliment,I really appreciate your thoughtful comment.,0,NO,Linear SVM,0.6160554454900625,0.59,1,YES,False
+benign_compliment,That was a great contribution to the discussion.,0,NO,Linear SVM,0.4491281754791417,0.59,0,NO,True
+benign_compliment,Thank you for taking the time to explain this.,0,NO,Linear SVM,0.49031753470481343,0.59,0,NO,True
+benign_compliment,I enjoyed reading your perspective.,0,NO,Linear SVM,0.4063037698619774,0.59,0,NO,True
+benign_identity_discussion,The Muslim community organised a food donation drive.,0,NO,Linear SVM,0.2913035604039464,0.59,0,NO,True
+benign_identity_discussion,Women participated in the leadership meeting.,0,NO,Linear SVM,0.17871670981583743,0.59,0,NO,True
+benign_identity_discussion,The race begins at nine in the morning.,0,NO,Linear SVM,0.6145321028571252,0.59,1,YES,False
+benign_identity_discussion,The Christian community held a charity event.,0,NO,Linear SVM,0.2566205852103693,0.59,0,NO,True
+benign_identity_discussion,The report discusses discrimination against immigrants.,0,NO,Linear SVM,0.5361451029316128,0.59,0,NO,True
+benign_identity_discussion,Students from different countries shared their traditions.,0,NO,Linear SVM,0.3197038720680023,0.59,0,NO,True
+quotation,The article quotes someone saying 'you are a stupid idiot'.,0,NO,Linear SVM,0.6594743276707544,0.59,1,YES,False
+quotation,She reported the message: 'go back to your own country'.,0,NO,Linear SVM,0.5314063791444849,0.59,0,NO,True
+quotation,The moderator removed a comment that called users idiots.,0,NO,Linear SVM,0.8270537153346366,0.59,1,YES,False
+quotation,He wrote about the phrase 'people like you don't belong here'.,0,NO,Linear SVM,0.54825857313608,0.59,0,NO,True
+quotation,The documentary discusses hateful language used online.,0,NO,Linear SVM,0.46109859006705106,0.59,0,NO,True
+quotation,The teacher asked us to analyse an offensive sentence.,0,NO,Linear SVM,0.36353640865158726,0.59,0,NO,True
+negation,I am not stupid and I know how to solve this.,0,NO,Linear SVM,0.570526571340069,0.59,0,NO,True
+negation,I don't hate anyone in this community.,0,NO,Linear SVM,0.3349720260139213,0.59,0,NO,True
+negation,This post is not attacking anyone.,0,NO,Linear SVM,0.4967295789647584,0.59,0,NO,True
+negation,Calling someone an idiot is not acceptable.,0,NO,Linear SVM,0.33547572768590816,0.59,0,NO,True
+negation,I never said that those people are worthless.,0,NO,Linear SVM,0.4055411273980623,0.59,0,NO,True
+negation,We should not insult people for their identity.,0,NO,Linear SVM,0.32256489388395926,0.59,0,NO,True
+obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,1,YES,Linear SVM,0.6043542088143953,0.59,1,YES,True
+obfuscated_harmful,"go b4ck to your own country, you don't belong here",1,YES,Linear SVM,0.5929400982467626,0.59,1,YES,True
+obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,1,YES,Linear SVM,0.6671993301035424,0.59,1,YES,True
+obfuscated_harmful,you are an 1d10t and a pathetic loser,1,YES,Linear SVM,0.8394318707990953,0.59,1,YES,True
+obfuscated_harmful,people like y0u should leave this place,1,YES,Linear SVM,0.4586518439005484,0.59,0,NO,False
+obfuscated_harmful,"you are w0rthless, get out of here",1,YES,Linear SVM,0.7565912417675428,0.59,1,YES,True
+hate_target,women are too stupid to lead,1,YES,Linear SVM,0.5784488889015428,0.59,0,NO,False
+hate_target,gay people are disgusting,1,YES,Linear SVM,0.48171034156403847,0.59,0,NO,False
+hate_target,Muslims are all violent and should leave,1,YES,Linear SVM,0.45551468638304304,0.59,0,NO,False
+hate_target,that race is inferior to everyone else,1,YES,Linear SVM,0.7653754228594138,0.59,1,YES,True
+hate_target,people of that religion are filthy,1,YES,Linear SVM,0.7558039729664281,0.59,1,YES,True
+hate_target,those immigrants are parasites,1,YES,Linear SVM,0.551290239960372,0.59,0,NO,False
+direct_insult,you are a stupid idiot nobody likes you,1,YES,Random Forest,0.5243476693302305,0.5,1,YES,True
+direct_insult,you are a pathetic loser and a complete fool,1,YES,Random Forest,0.4874666693217588,0.5,0,NO,False
+direct_insult,shut up you disgusting idiot,1,YES,Random Forest,0.5342870098068632,0.5,1,YES,True
+direct_insult,what a worthless moron you are,1,YES,Random Forest,0.49775211207351955,0.5,0,NO,False
+direct_insult,you are an annoying piece of trash,1,YES,Random Forest,0.5318734327173412,0.5,1,YES,True
+direct_insult,"nobody wants you here, idiot",1,YES,Random Forest,0.4835901948087335,0.5,0,NO,False
+implicit_attack,go back to your own country you don't belong here,1,YES,Random Forest,0.5104887354663068,0.5,1,YES,True
+implicit_attack,people like you should leave this place,1,YES,Random Forest,0.49350698056628806,0.5,0,NO,False
+implicit_attack,we don't need your kind around here,1,YES,Random Forest,0.4919141647958113,0.5,0,NO,False
+implicit_attack,keep your kind out of our community,1,YES,Random Forest,0.484542757956272,0.5,0,NO,False
+implicit_attack,someone like you has no place here,1,YES,Random Forest,0.48097992909374593,0.5,0,NO,False
+implicit_attack,why don't you people just go somewhere else,1,YES,Random Forest,0.47423990786967385,0.5,0,NO,False
+benign_compliment,"Thanks for sharing, this was really useful!",0,NO,Random Forest,0.4817031185663643,0.5,0,NO,True
+benign_compliment,Your explanation was clear and helpful.,0,NO,Random Forest,0.4817031185663643,0.5,0,NO,True
+benign_compliment,I really appreciate your thoughtful comment.,0,NO,Random Forest,0.48697386177454705,0.5,0,NO,True
+benign_compliment,That was a great contribution to the discussion.,0,NO,Random Forest,0.4817031185663643,0.5,0,NO,True
+benign_compliment,Thank you for taking the time to explain this.,0,NO,Random Forest,0.47841100056987107,0.5,0,NO,True
+benign_compliment,I enjoyed reading your perspective.,0,NO,Random Forest,0.4817031185663643,0.5,0,NO,True
+benign_identity_discussion,The Muslim community organised a food donation drive.,0,NO,Random Forest,0.46601265784651474,0.5,0,NO,True
+benign_identity_discussion,Women participated in the leadership meeting.,0,NO,Random Forest,0.43112982875203204,0.5,0,NO,True
+benign_identity_discussion,The race begins at nine in the morning.,0,NO,Random Forest,0.5149952817138638,0.5,1,YES,False
+benign_identity_discussion,The Christian community held a charity event.,0,NO,Random Forest,0.47735786376440226,0.5,0,NO,True
+benign_identity_discussion,The report discusses discrimination against immigrants.,0,NO,Random Forest,0.44231148955852917,0.5,0,NO,True
+benign_identity_discussion,Students from different countries shared their traditions.,0,NO,Random Forest,0.47054741621320867,0.5,0,NO,True
+quotation,The article quotes someone saying 'you are a stupid idiot'.,0,NO,Random Forest,0.520016964284573,0.5,1,YES,False
+quotation,She reported the message: 'go back to your own country'.,0,NO,Random Forest,0.5044444126072514,0.5,1,YES,False
+quotation,The moderator removed a comment that called users idiots.,0,NO,Random Forest,0.4909838571466306,0.5,0,NO,True
+quotation,He wrote about the phrase 'people like you don't belong here'.,0,NO,Random Forest,0.48981758477386084,0.5,0,NO,True
+quotation,The documentary discusses hateful language used online.,0,NO,Random Forest,0.47708649804980774,0.5,0,NO,True
+quotation,The teacher asked us to analyse an offensive sentence.,0,NO,Random Forest,0.4817031185663643,0.5,0,NO,True
+negation,I am not stupid and I know how to solve this.,0,NO,Random Forest,0.49039883902435083,0.5,0,NO,True
+negation,I don't hate anyone in this community.,0,NO,Random Forest,0.44281552133283536,0.5,0,NO,True
+negation,This post is not attacking anyone.,0,NO,Random Forest,0.4810097371097192,0.5,0,NO,True
+negation,Calling someone an idiot is not acceptable.,0,NO,Random Forest,0.4719888408640613,0.5,0,NO,True
+negation,I never said that those people are worthless.,0,NO,Random Forest,0.46061906684075055,0.5,0,NO,True
+negation,We should not insult people for their identity.,0,NO,Random Forest,0.4623530748042609,0.5,0,NO,True
+obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,1,YES,Random Forest,0.5243476693302305,0.5,1,YES,True
+obfuscated_harmful,"go b4ck to your own country, you don't belong here",1,YES,Random Forest,0.5104887354663068,0.5,1,YES,True
+obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,1,YES,Random Forest,0.4817031185663643,0.5,0,NO,False
+obfuscated_harmful,you are an 1d10t and a pathetic loser,1,YES,Random Forest,0.4817031185663643,0.5,0,NO,False
+obfuscated_harmful,people like y0u should leave this place,1,YES,Random Forest,0.49350698056628806,0.5,0,NO,False
+obfuscated_harmful,"you are w0rthless, get out of here",1,YES,Random Forest,0.4860511192941481,0.5,0,NO,False
+hate_target,women are too stupid to lead,1,YES,Random Forest,0.4819340698685009,0.5,0,NO,False
+hate_target,gay people are disgusting,1,YES,Random Forest,0.46864812595836464,0.5,0,NO,False
+hate_target,Muslims are all violent and should leave,1,YES,Random Forest,0.4623553800628975,0.5,0,NO,False
+hate_target,that race is inferior to everyone else,1,YES,Random Forest,0.5149952817138638,0.5,1,YES,True
+hate_target,people of that religion are filthy,1,YES,Random Forest,0.5922554562863905,0.5,1,YES,True
+hate_target,those immigrants are parasites,1,YES,Random Forest,0.44548530773259065,0.5,0,NO,False

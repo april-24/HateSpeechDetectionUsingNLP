@@ -1,10 +1,4 @@
-model,case_type,detected,total,rate
-Linear SVM,benign,1,10,0.1
-Linear SVM,harmful_obfuscated,7,7,1.0
-Linear SVM,harmful_plain,9,11,0.8181818181818182
-Logistic Regression,benign,1,10,0.1
-Logistic Regression,harmful_obfuscated,7,7,1.0
-Logistic Regression,harmful_plain,9,11,0.8181818181818182
-Random Forest,benign,10,10,1.0
-Random Forest,harmful_obfuscated,7,7,1.0
-Random Forest,harmful_plain,11,11,1.0
+model,detected,total,detection_rate,interpretation
+Linear SVM,5,6,0.8333333333333334,Qualitative demonstration; not a claim of adversarial robustness.
+Logistic Regression,5,6,0.8333333333333334,Qualitative demonstration; not a claim of adversarial robustness.
+Random Forest,2,6,0.3333333333333333,Qualitative demonstration; not a claim of adversarial robustness.

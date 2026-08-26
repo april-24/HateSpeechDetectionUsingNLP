@@ -1,6 +1,5 @@
-"""Generate final-test confusion matrices and a larger behavioural evasion demo."""
+"""Generate final-test confusion matrices and behavioural/evasion artifacts."""
 import os
-import re
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -8,109 +7,116 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 from src.common import prepare_data
-from src.config import MODEL_FILES, pretty, PRIMARY_LABEL
-from src.predictor import load_model, _label_probs, get_thresholds
-from src.train_utils import apply_thresholds
+from src.config import MODEL_FILES, PRIMARY_LABEL
+from src.predictor import load_model, _label_probs
 from src.preprocessing import clean_text
+from src.behavioral_evaluation import main as run_behavioral
 
 
-CASES = [
-    ("harmful_plain", "you are a stupid idiot"),
-    ("harmful_obfuscated", "you are a st00pid i.d.i.o.t"),
-    ("harmful_plain", "I hate you and you are worthless"),
-    ("harmful_obfuscated", "I h4te you and you are w0rthless"),
-    ("harmful_plain", "go back to your own country"),
-    ("harmful_obfuscated", "g.o b4ck to your own c0untry"),
-    ("harmful_plain", "women are too stupid to lead"),
-    ("harmful_obfuscated", "w0men are too stuuuupid to lead"),
-    ("harmful_plain", "gay people are disgusting"),
-    ("harmful_obfuscated", "g4y people are d.i.s.g.u.s.t.i.n.g"),
-    ("harmful_plain", "you pathetic loser"),
-    ("harmful_obfuscated", "you p4thetic l0ser"),
-    ("harmful_plain", "immigrants do not belong here"),
-    ("harmful_obfuscated", "immigr4nts d0 n0t bel0ng here"),
-    ("harmful_plain", "Muslim people are disgusting"),
-    ("harmful_plain", "men are useless"),
-    ("harmful_plain", "stop insulting everyone"),
-    ("harmful_plain", "you are an idiot"),
-    ("benign", "thank you for your helpful explanation"),
-    ("benign", "Thanks for sharing, this was really useful!"),
-    ("benign", "I disagree with this policy"),
-    ("benign", "women participated in the leadership meeting"),
-    ("benign", "the Christian community held a charity event"),
-    ("benign", "Muslim students organised a food donation drive"),
-    ("benign", "the race begins at nine in the morning"),
-    ("benign", "I am not happy with the result but I respect your view"),
-    ("benign", "Could you please explain your point again?"),
-    ("benign", "This discussion is useful and informative"),
-]
-
-
-def confusion_figure():
+def primary_confusion_figure():
     _, X_test, _, y_test, labels = prepare_data(verbose=False)
-    n_models = len(MODEL_FILES)
-    fig, axes = plt.subplots(n_models, len(labels), figsize=(16, 8))
-    if n_models == 1:
+    primary_index = labels.index(PRIMARY_LABEL)
+    fig, axes = plt.subplots(1, len(MODEL_FILES), figsize=(12, 4))
+    if len(MODEL_FILES) == 1:
         axes = [axes]
-    for row, (model_name, path) in enumerate(MODEL_FILES.items()):
+    for ax, (model_name, path) in zip(axes, MODEL_FILES.items()):
+        if not os.path.exists(path):
+            ax.axis("off")
+            continue
         bundle = load_model(path)
-        thresholds = get_thresholds(bundle, model_name=model_name)
-        probabilities = _label_probs(bundle["pipeline"], list(X_test))
-        predictions = apply_thresholds(probabilities, thresholds, labels)
+        P = _label_probs(bundle["pipeline"], list(X_test))
+        threshold = float(bundle["thresholds"][PRIMARY_LABEL])
+        pred = (P[:, primary_index] >= threshold).astype(int)
+        cm = confusion_matrix(
+            y_test.values[:, primary_index], pred, labels=[0, 1])
+        ax.imshow(cm, cmap="Blues")
+        for i in range(2):
+            for j in range(2):
+                ax.text(j, i, cm[i, j], ha="center", va="center", fontsize=11)
+        ax.set_title(f"{model_name}\nthreshold={threshold:.2f}")
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+        ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+    fig.suptitle("Final-test primary harmful-content confusion matrices")
+    fig.tight_layout()
+    fig.savefig(
+        "results/confusion_matrices_final_test.png",
+        dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def multilabel_confusion_figure():
+    _, X_test, _, y_test, labels = prepare_data(verbose=False)
+    fig, axes = plt.subplots(
+        len(MODEL_FILES), len(labels), figsize=(17, 9))
+    for row, (model_name, path) in enumerate(MODEL_FILES.items()):
+        if not os.path.exists(path):
+            continue
+        bundle = load_model(path)
+        P = _label_probs(bundle["pipeline"], list(X_test))
         for col, label in enumerate(labels):
-            matrix = confusion_matrix(y_test.values[:, col], predictions[:, col])
-            ax = axes[row][col]
-            ax.imshow(matrix)
+            th = float(bundle["thresholds"][label])
+            pred = (P[:, col] >= th).astype(int)
+            cm = confusion_matrix(
+                y_test.values[:, col], pred, labels=[0, 1])
+            ax = axes[row, col]
+            ax.imshow(cm, cmap="Blues")
             for i in range(2):
                 for j in range(2):
-                    ax.text(j, i, matrix[i, j], ha="center", va="center", fontsize=8)
+                    ax.text(j, i, cm[i, j], ha="center", va="center", fontsize=8)
+            ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
             if row == 0:
-                ax.set_title(pretty(label), fontsize=9)
+                ax.set_title(label, fontsize=9)
             if col == 0:
                 ax.set_ylabel(model_name, fontsize=9)
-            ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
-    fig.supxlabel("Predicted label")
-    fig.supylabel("Actual label")
+    fig.supxlabel("Predicted")
+    fig.supylabel("Actual")
     fig.tight_layout()
-    fig.savefig("results/confusion_matrices_final_test.png", dpi=180)
+    fig.savefig("results/confusion_matrices_multilabel_final_test.png",
+                dpi=170, bbox_inches="tight")
     plt.close(fig)
 
 
 def evasion_demonstration():
-    rows = []
-    cleaned = [clean_text(text) for _, text in CASES]
-    for model_name, path in MODEL_FILES.items():
-        bundle = load_model(path)
-        thresholds = get_thresholds(bundle, model_name=model_name)
-        probabilities = _label_probs(bundle["pipeline"], cleaned)
-        predictions = apply_thresholds(probabilities, thresholds, bundle["labels"])
-        primary_index = bundle["labels"].index(PRIMARY_LABEL)
-        for idx, ((case_type, text), clean) in enumerate(zip(CASES, cleaned)):
-            primary_prob = float(probabilities[idx, primary_index])
-            primary_pred = int(predictions[idx, primary_index])
-            target_positive = [
-                bundle["labels"][j] for j in range(1, len(bundle["labels"]))
-                if predictions[idx, j] == 1
-            ]
+    """Keep the evasion result explicitly qualitative; behavioural evaluation
+    is the quantitative larger test."""
+    cases = pd.read_csv("data/behavioral_test_cases.csv")
+    cases = cases[cases["category"] == "obfuscated_harmful"].copy()
+    rows=[]
+    for model_name,path in MODEL_FILES.items():
+        if not os.path.exists(path):
+            continue
+        bundle=load_model(path)
+        cleaned=[clean_text(x) for x in cases["text"]]
+        P=_label_probs(bundle["pipeline"],cleaned)
+        idx=bundle["labels"].index(PRIMARY_LABEL)
+        th=float(bundle["thresholds"][PRIMARY_LABEL])
+        for (_,case),prob in zip(cases.iterrows(),P[:,idx]):
             rows.append({
-                "model": model_name,
-                "case_type": case_type,
-                "text": text,
-                "cleaned_text": clean,
-                "primary_threshold": float(thresholds[PRIMARY_LABEL]),
-                "harmful_probability": primary_prob,
-                "predicted_harmful": primary_pred,
-                "positive_target_labels": ", ".join(target_positive),
+                "model":model_name,
+                "case_type":"obfuscated_harmful",
+                "text":case["text"],
+                "threshold":th,
+                "harmful_probability":float(prob),
+                "predicted_harmful":int(prob>=th),
+                "expected_harmful":int(case["expected_harmful"])
             })
-    details = pd.DataFrame(rows)
-    details.to_csv("results/evasion_demonstration_details.csv", index=False)
-    summary = details.groupby(["model", "case_type"])["predicted_harmful"].agg(
-        detected="sum", total="count", rate="mean").reset_index()
-    summary.to_csv("results/evasion_demonstration_summary.csv", index=False)
+    details=pd.DataFrame(rows)
+    summary=details.groupby("model").agg(
+        detected=("predicted_harmful","sum"),
+        total=("predicted_harmful","count")
+    ).reset_index()
+    summary["detection_rate"]=summary["detected"]/summary["total"]
+    summary["interpretation"]="Qualitative demonstration; not a claim of adversarial robustness."
+    details.to_csv("results/evasion_demonstration_details.csv",index=False)
+    summary.to_csv("results/evasion_demonstration_summary.csv",index=False)
 
 
 if __name__ == "__main__":
     os.makedirs("results", exist_ok=True)
-    confusion_figure()
-    evasion_demonstration()
-    print("Generated final-test confusion matrices and expanded behavioural evaluation.")
+    primary_confusion_figure()
+    multilabel_confusion_figure()
+    if os.path.exists("data/behavioral_test_cases.csv"):
+        run_behavioral()
+        evasion_demonstration()
+    print("Generated final-test confusion matrices and behavioural/evasion artifacts.")

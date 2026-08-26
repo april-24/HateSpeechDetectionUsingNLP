@@ -1,18 +1,4 @@
-"""
-member1_logistic_regression.py   (MEMBER 1's solution)
-======================================================
-Method : Logistic Regression + TF-IDF features (word + character n-grams)
-Wrapper: OneVsRestClassifier (one LR per label -> multi-label)
-
-Logistic Regression models the probability of each label with a linear decision
-boundary over the TF-IDF features. It is fast and its learned
-weights are easy to interpret (used later to highlight influential words).
-
-Run from the project root:
-    python -m models.member1_logistic_regression
-    python -m models.member1_logistic_regression --sample 20000
-"""
-
+"""Member 1: Logistic Regression + TF-IDF (word 1-3 grams + character 3-5 grams)."""
 import os
 import sys
 import argparse
@@ -27,17 +13,34 @@ MODEL_NAME = "Logistic Regression"
 MODEL_PATH = "results/model_lr.joblib"
 
 
-def build_pipeline():
+def build_pipeline(C=1.0, class_weight="balanced"):
     return Pipeline([
-        ("features", build_word_char_features(word_max_features=30000,
-                                              char_max_features=10000)),
+        ("features", build_word_char_features(
+            word_max_features=8000,
+            char_max_features=1000,
+            word_ngram_range=(1, 3))),
         ("clf", OneVsRestClassifier(
-            LogisticRegression(max_iter=1000, C=3.0, class_weight="balanced"))),
+            LogisticRegression(
+                max_iter=1200, C=C, class_weight=class_weight,
+                solver="saga", n_jobs=-1
+            )))
     ])
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sample", type=int, default=None)
     args = ap.parse_args()
-    train_and_save(MODEL_NAME, build_pipeline(), MODEL_PATH, sample=args.sample)
+    candidates = [
+        ("C=0.5, class_weight=balanced", build_pipeline(0.5, "balanced")),
+        ("C=1.0, class_weight=balanced", build_pipeline(1.0, "balanced")),
+        ("C=2.0, class_weight=balanced", build_pipeline(2.0, "balanced")),
+    ]
+    train_and_save(
+        MODEL_NAME, candidates[1][1], MODEL_PATH,
+        sample=args.sample, candidates=candidates
+    )
+
+
+if __name__ == "__main__":
+    main()

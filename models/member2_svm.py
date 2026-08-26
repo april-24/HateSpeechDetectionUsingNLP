@@ -1,20 +1,10 @@
+"""Member 2: calibrated Linear SVM + TF-IDF.
+
+LinearSVC itself does not output probabilities. CalibratedClassifierCV performs
+formal sigmoid calibration inside the training data, so probability thresholds
+can be selected from OOF predictions without treating raw margins as
+probabilities.
 """
-member2_svm.py   (MEMBER 2's solution)
-======================================
-Method : Linear Support Vector Machine (LinearSVC) + TF-IDF features (word + character n-grams)
-Wrapper: OneVsRestClassifier (one SVM per label -> multi-label)
-
-An SVM finds the separating hyperplane with the widest margin between classes.
-On sparse high-dimensional TF-IDF text this linear SVM is a strong, fast baseline.
-The LinearSVC is wrapped in cross-validated sigmoid calibration so that the
-application can display predicted probabilities without pretending that a
-simple logistic transform of the raw margin is calibrated.
-
-Run from the project root:
-    python -m models.member2_svm
-    python -m models.member2_svm --sample 20000
-"""
-
 import os
 import sys
 import argparse
@@ -30,17 +20,36 @@ MODEL_NAME = "Linear SVM"
 MODEL_PATH = "results/model_svm.joblib"
 
 
-def build_pipeline():
+def build_pipeline(C=1.0, class_weight="balanced"):
     return Pipeline([
-        ("features", build_word_char_features(word_max_features=30000,
-                                              char_max_features=10000)),
-        ("clf", OneVsRestClassifier(CalibratedClassifierCV(
-            LinearSVC(C=1.0, class_weight="balanced"), method="sigmoid", cv=3))),
+        ("features", build_word_char_features(
+            word_max_features=8000,
+            char_max_features=1000,
+            word_ngram_range=(1, 3))),
+        ("clf", OneVsRestClassifier(
+            CalibratedClassifierCV(
+                LinearSVC(C=C, class_weight=class_weight, max_iter=5000),
+                method="sigmoid", cv=3
+            )
+        ))
     ])
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sample", type=int, default=None)
     args = ap.parse_args()
-    train_and_save(MODEL_NAME, build_pipeline(), MODEL_PATH, sample=args.sample)
+    candidates = [
+        ("C=0.5, class_weight=balanced", build_pipeline(0.5, "balanced")),
+        ("C=1.0, class_weight=balanced", build_pipeline(1.0, "balanced")),
+        ("C=2.0, class_weight=balanced", build_pipeline(2.0, "balanced")),
+        ("C=1.0, class_weight=None", build_pipeline(1.0, None)),
+    ]
+    train_and_save(
+        MODEL_NAME, candidates[1][1], MODEL_PATH,
+        sample=args.sample, candidates=candidates
+    )
+
+
+if __name__ == "__main__":
+    main()

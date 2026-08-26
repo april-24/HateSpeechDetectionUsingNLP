@@ -1,85 +1,19 @@
-model,case_type,text,cleaned_text,primary_threshold,harmful_probability,predicted_harmful,positive_target_labels
-Logistic Regression,harmful_plain,you are a stupid idiot,stupid idiot,0.33,0.8173626886622173,1,
-Logistic Regression,harmful_obfuscated,you are a st00pid i.d.i.o.t,stoopid idiot,0.33,0.6427697628301261,1,
-Logistic Regression,harmful_plain,I hate you and you are worthless,hate worthless,0.33,0.5170418446090697,1,
-Logistic Regression,harmful_obfuscated,I h4te you and you are w0rthless,hate worthless,0.33,0.5170418446090697,1,
-Logistic Regression,harmful_plain,go back to your own country,go back own country,0.33,0.44472911185668096,1,Miscellaneous
-Logistic Regression,harmful_obfuscated,g.o b4ck to your own c0untry,back own country,0.33,0.391115420215637,1,
-Logistic Regression,harmful_plain,women are too stupid to lead,women stupid lead,0.33,0.43200468414177745,1,Miscellaneous
-Logistic Regression,harmful_obfuscated,w0men are too stuuuupid to lead,women stupid lead,0.33,0.43200468414177745,1,Miscellaneous
-Logistic Regression,harmful_plain,gay people are disgusting,gay people disgusting,0.33,0.3972024999641243,1,Sexual_Orientation
-Logistic Regression,harmful_obfuscated,g4y people are d.i.s.g.u.s.t.i.n.g,gay people disgusting,0.33,0.3972024999641243,1,Sexual_Orientation
-Logistic Regression,harmful_plain,you pathetic loser,pathetic loser,0.33,0.6855891147071914,1,
-Logistic Regression,harmful_obfuscated,you p4thetic l0ser,pathetic loser,0.33,0.6855891147071914,1,
-Logistic Regression,harmful_plain,immigrants do not belong here,immigrants not belong here,0.33,0.3686789200480933,1,Miscellaneous
-Logistic Regression,harmful_obfuscated,immigr4nts d0 n0t bel0ng here,immigrants not belong here,0.33,0.3686789200480933,1,Miscellaneous
-Logistic Regression,harmful_plain,Muslim people are disgusting,muslim people disgusting,0.33,0.504736888663928,1,Religion
-Logistic Regression,harmful_plain,men are useless,men useless,0.33,0.29654153584350085,0,Gender
-Logistic Regression,harmful_plain,stop insulting everyone,stop insulting everyone,0.33,0.3241005127847729,0,
-Logistic Regression,harmful_plain,you are an idiot,idiot,0.33,0.6341868982941749,1,
-Logistic Regression,benign,thank you for your helpful explanation,thank helpful explanation,0.33,0.2784692246357873,0,
-Logistic Regression,benign,"Thanks for sharing, this was really useful!",thanks sharing really useful,0.33,0.31141402443659083,0,
-Logistic Regression,benign,I disagree with this policy,disagree policy,0.33,0.14419753223979276,0,
-Logistic Regression,benign,women participated in the leadership meeting,women participated leadership meeting,0.33,0.06411147958222127,0,
-Logistic Regression,benign,the Christian community held a charity event,christian community held charity event,0.33,0.07602423959344375,0,Religion
-Logistic Regression,benign,Muslim students organised a food donation drive,muslim students organised food donation drive,0.33,0.190413374880321,0,Religion
-Logistic Regression,benign,the race begins at nine in the morning,race begins nine morning,0.33,0.46472844523943596,1,
-Logistic Regression,benign,I am not happy with the result but I respect your view,am not happy result respect view,0.33,0.1392234354200074,0,
-Logistic Regression,benign,Could you please explain your point again?,could please explain point again,0.33,0.08225019316698351,0,
-Logistic Regression,benign,This discussion is useful and informative,discussion useful informative,0.33,0.06416120682424487,0,
-Linear SVM,harmful_plain,you are a stupid idiot,stupid idiot,0.44,0.754429935566059,1,
-Linear SVM,harmful_obfuscated,you are a st00pid i.d.i.o.t,stoopid idiot,0.44,0.6387474637237706,1,
-Linear SVM,harmful_plain,I hate you and you are worthless,hate worthless,0.44,0.613302092033667,1,
-Linear SVM,harmful_obfuscated,I h4te you and you are w0rthless,hate worthless,0.44,0.613302092033667,1,
-Linear SVM,harmful_plain,go back to your own country,go back own country,0.44,0.48365905178788715,1,Miscellaneous
-Linear SVM,harmful_obfuscated,g.o b4ck to your own c0untry,back own country,0.44,0.47810077288100783,1,
-Linear SVM,harmful_plain,women are too stupid to lead,women stupid lead,0.44,0.5182378886384965,1,Miscellaneous
-Linear SVM,harmful_obfuscated,w0men are too stuuuupid to lead,women stupid lead,0.44,0.5182378886384965,1,Miscellaneous
-Linear SVM,harmful_plain,gay people are disgusting,gay people disgusting,0.44,0.4880451690861037,1,"Gender, Sexual_Orientation"
-Linear SVM,harmful_obfuscated,g4y people are d.i.s.g.u.s.t.i.n.g,gay people disgusting,0.44,0.4880451690861037,1,"Gender, Sexual_Orientation"
-Linear SVM,harmful_plain,you pathetic loser,pathetic loser,0.44,0.6702599708129751,1,
-Linear SVM,harmful_obfuscated,you p4thetic l0ser,pathetic loser,0.44,0.6702599708129751,1,
-Linear SVM,harmful_plain,immigrants do not belong here,immigrants not belong here,0.44,0.540562162721339,1,Miscellaneous
-Linear SVM,harmful_obfuscated,immigr4nts d0 n0t bel0ng here,immigrants not belong here,0.44,0.540562162721339,1,Miscellaneous
-Linear SVM,harmful_plain,Muslim people are disgusting,muslim people disgusting,0.44,0.540821492593278,1,Religion
-Linear SVM,harmful_plain,men are useless,men useless,0.44,0.4209034816425752,0,Gender
-Linear SVM,harmful_plain,stop insulting everyone,stop insulting everyone,0.44,0.4196363785311596,0,
-Linear SVM,harmful_plain,you are an idiot,idiot,0.44,0.6277148553901343,1,
-Linear SVM,benign,thank you for your helpful explanation,thank helpful explanation,0.44,0.4232977930916682,0,
-Linear SVM,benign,"Thanks for sharing, this was really useful!",thanks sharing really useful,0.44,0.43719242919637785,0,
-Linear SVM,benign,I disagree with this policy,disagree policy,0.44,0.31171276420554356,0,
-Linear SVM,benign,women participated in the leadership meeting,women participated leadership meeting,0.44,0.15675229259348994,0,
-Linear SVM,benign,the Christian community held a charity event,christian community held charity event,0.44,0.19886835304427739,0,Religion
-Linear SVM,benign,Muslim students organised a food donation drive,muslim students organised food donation drive,0.44,0.29673441212272633,0,Religion
-Linear SVM,benign,the race begins at nine in the morning,race begins nine morning,0.44,0.5837623056083555,1,
-Linear SVM,benign,I am not happy with the result but I respect your view,am not happy result respect view,0.44,0.356767717384393,0,
-Linear SVM,benign,Could you please explain your point again?,could please explain point again,0.44,0.2264050032007758,0,
-Linear SVM,benign,This discussion is useful and informative,discussion useful informative,0.44,0.18922624303221794,0,
-Random Forest,harmful_plain,you are a stupid idiot,stupid idiot,0.42,0.5344568023400454,1,
-Random Forest,harmful_obfuscated,you are a st00pid i.d.i.o.t,stoopid idiot,0.42,0.47570720605052724,1,
-Random Forest,harmful_plain,I hate you and you are worthless,hate worthless,0.42,0.4237858457711676,1,
-Random Forest,harmful_obfuscated,I h4te you and you are w0rthless,hate worthless,0.42,0.4237858457711676,1,
-Random Forest,harmful_plain,go back to your own country,go back own country,0.42,0.4432412868304621,1,
-Random Forest,harmful_obfuscated,g.o b4ck to your own c0untry,back own country,0.42,0.43354519769597333,1,
-Random Forest,harmful_plain,women are too stupid to lead,women stupid lead,0.42,0.520857340093727,1,
-Random Forest,harmful_obfuscated,w0men are too stuuuupid to lead,women stupid lead,0.42,0.520857340093727,1,
-Random Forest,harmful_plain,gay people are disgusting,gay people disgusting,0.42,0.457175037942802,1,Sexual_Orientation
-Random Forest,harmful_obfuscated,g4y people are d.i.s.g.u.s.t.i.n.g,gay people disgusting,0.42,0.457175037942802,1,Sexual_Orientation
-Random Forest,harmful_plain,you pathetic loser,pathetic loser,0.42,0.5149426233028549,1,
-Random Forest,harmful_obfuscated,you p4thetic l0ser,pathetic loser,0.42,0.5149426233028549,1,
-Random Forest,harmful_plain,immigrants do not belong here,immigrants not belong here,0.42,0.45985366907561354,1,
-Random Forest,harmful_obfuscated,immigr4nts d0 n0t bel0ng here,immigrants not belong here,0.42,0.45985366907561354,1,
-Random Forest,harmful_plain,Muslim people are disgusting,muslim people disgusting,0.42,0.43088039759775754,1,Religion
-Random Forest,harmful_plain,men are useless,men useless,0.42,0.4455265107434842,1,Gender
-Random Forest,harmful_plain,stop insulting everyone,stop insulting everyone,0.42,0.4593722532816345,1,
-Random Forest,harmful_plain,you are an idiot,idiot,0.42,0.47570720605052724,1,
-Random Forest,benign,thank you for your helpful explanation,thank helpful explanation,0.42,0.45580693079607854,1,
-Random Forest,benign,"Thanks for sharing, this was really useful!",thanks sharing really useful,0.42,0.4565285281952771,1,
-Random Forest,benign,I disagree with this policy,disagree policy,0.42,0.4593722532816345,1,
-Random Forest,benign,women participated in the leadership meeting,women participated leadership meeting,0.42,0.45518946265712606,1,
-Random Forest,benign,the Christian community held a charity event,christian community held charity event,0.42,0.44267291015744564,1,"Religion, Sexual_Orientation"
-Random Forest,benign,Muslim students organised a food donation drive,muslim students organised food donation drive,0.42,0.45968649068089423,1,Religion
-Random Forest,benign,the race begins at nine in the morning,race begins nine morning,0.42,0.4858951086548313,1,
-Random Forest,benign,I am not happy with the result but I respect your view,am not happy result respect view,0.42,0.4525515020852619,1,
-Random Forest,benign,Could you please explain your point again?,could please explain point again,0.42,0.43449529109852864,1,
-Random Forest,benign,This discussion is useful and informative,discussion useful informative,0.42,0.4593722532816345,1,
+model,case_type,text,threshold,harmful_probability,predicted_harmful,expected_harmful
+Logistic Regression,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.53,0.5544348909294377,1,1
+Logistic Regression,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.53,0.5364363453076819,1,1
+Logistic Regression,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.53,0.6200134847302355,1,1
+Logistic Regression,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.53,0.7980974511599878,1,1
+Logistic Regression,obfuscated_harmful,people like y0u should leave this place,0.53,0.37387687985835383,0,1
+Logistic Regression,obfuscated_harmful,"you are w0rthless, get out of here",0.53,0.6691751518303749,1,1
+Linear SVM,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.59,0.6043542088143953,1,1
+Linear SVM,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.59,0.5929400982467626,1,1
+Linear SVM,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.59,0.6671993301035424,1,1
+Linear SVM,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.59,0.8394318707990953,1,1
+Linear SVM,obfuscated_harmful,people like y0u should leave this place,0.59,0.4586518439005484,0,1
+Linear SVM,obfuscated_harmful,"you are w0rthless, get out of here",0.59,0.7565912417675428,1,1
+Random Forest,obfuscated_harmful,you are a stuuupid idiooot and nobody likes you,0.5,0.5243476693302305,1,1
+Random Forest,obfuscated_harmful,"go b4ck to your own country, you don't belong here",0.5,0.5104887354663068,1,1
+Random Forest,obfuscated_harmful,you are a d.i.s.g.u.s.t.i.n.g loser,0.5,0.4817031185663643,0,1
+Random Forest,obfuscated_harmful,you are an 1d10t and a pathetic loser,0.5,0.4817031185663643,0,1
+Random Forest,obfuscated_harmful,people like y0u should leave this place,0.5,0.49350698056628806,0,1
+Random Forest,obfuscated_harmful,"you are w0rthless, get out of here",0.5,0.4860511192941481,0,1

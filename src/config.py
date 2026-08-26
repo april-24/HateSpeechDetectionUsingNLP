@@ -1,8 +1,11 @@
-"""Central configuration for the HarmShield Hate/Offensive Content Detector."""
+"""Central configuration for the hate/offensive content detector."""
 
 LABELS = ["abusive", "Race", "Religion", "Gender",
           "Sexual_Orientation", "Miscellaneous"]
 PRIMARY_LABEL = "abusive"
+PRIMARY_DECISION_DESCRIPTION = (
+    "Only the abusive label determines the final harmful-content YES/NO verdict."
+)
 
 DISPLAY_NAMES = {
     "abusive": "Harmful Content",
@@ -19,8 +22,7 @@ MODEL_FILES = {
     "Random Forest": "results/model_rf.joblib",
 }
 
-# Fallbacks are used only when a model bundle is missing threshold metadata.
-# They are per-label, not one scalar shared by every output.
+# Six-label fallback thresholds. Retrained model bundles override these values.
 DEFAULT_THRESHOLDS = {
     "Logistic Regression": {
         "abusive": 0.50, "Race": 0.50, "Religion": 0.50,
@@ -36,20 +38,15 @@ DEFAULT_THRESHOLDS = {
     },
 }
 
-# Threshold-selection objective. Keep F1 as the default so the choice is
-# transparent and balanced. Set to "f_beta" and choose beta > 1 when recall
-# is deliberately prioritised by the project/report.
-PRIMARY_THRESHOLD_METRIC = "f1"
-PRIMARY_F_BETA = 1.5
-
-# Optional UI status. A prediction below the primary threshold but close to it,
-# with at least one positive target-group output, is surfaced for human review.
-BORDERLINE_REVIEW_ENABLED = True
-BORDERLINE_MARGIN = 0.08
-
 SCORES_CSV = "results/model_scores.csv"
 DATA_DIR = "data"
 
 
 def pretty(label: str) -> str:
     return DISPLAY_NAMES.get(label, label)
+
+
+def get_default_thresholds(model_name):
+    return dict(DEFAULT_THRESHOLDS.get(model_name, {
+        label: 0.50 for label in LABELS
+    }))

@@ -1,41 +1,7 @@
+"""Member 3: Random Forest + TF-IDF word 1-3 grams.
+
+Development-only CV evaluates tree count, depth, leaf size and class weighting.
 """
-member3_random_forest.py   (MEMBER 3's solution)
-================================================
-Method : Random Forest + TF-IDF features (word unigrams)
-Wrapper: OneVsRestClassifier (one forest per label -> multi-label)
-
-A Random Forest is an ensemble of decision trees; each tree votes and the forest
-averages them, which reduces overfitting. Unlike the linear models it can capture
-non-linear combinations of words. It provides predict_proba (used for confidence)
-and per-feature importances (used to highlight influential words).
-
-REVERTED to this smaller, word-unigram-only configuration after testing showed
-adding word bigrams + character n-grams (~33MB model) did NOT fix Random
-Forest's core weakness - it still under-detects even obvious cases like slurs
-and profanity, because the issue is structural (each split only sees a random
-subset of features, and short comments often don't reach the words that
-matter across many trees) rather than a feature-richness problem. This smaller
-configuration gives essentially the same real-world detection behaviour at
-~6-7 MB instead of ~33 MB and trains in seconds instead of ~90 seconds - so
-there was no reason to keep paying the larger cost.
-
-A KNOWN, DOCUMENTED LIMITATION (worth citing in your report): Random Forest's
-predict_proba on sparse, high-dimensional TF-IDF text tends to be
-systematically more conservative (lower) than a linear or probabilistic
-model's, even when directionally correct. We tested several fixes - richer
-features, probability calibration (CalibratedClassifierCV), higher per-split
-feature sampling, and TruncatedSVD dimensionality reduction - none solved it
-without a worse trade-off elsewhere (bigger files, much slower training, or
-hurting minority-category recall). This is genuinely useful content for a
-"strengths & weaknesses" discussion in your documentation. See also
-models/naive_bayes_extra.py for a probabilistic model that does not have
-this specific weakness.
-
-Run from the project root:
-    python -m models.member3_random_forest
-    python -m models.member3_random_forest --sample 20000
-"""
-
 import os
 import sys
 import argparse
@@ -51,18 +17,42 @@ MODEL_NAME = "Random Forest"
 MODEL_PATH = "results/model_rf.joblib"
 
 
-def build_pipeline():
+def build_pipeline(n_estimators=120, max_depth=35, min_samples_leaf=2,
+                   class_weight="balanced"):
     return Pipeline([
-        ("tfidf", TfidfVectorizer(max_features=8000, ngram_range=(1, 1),
-                                  min_df=3, sublinear_tf=True)),
-        ("clf", OneVsRestClassifier(RandomForestClassifier(
-            n_estimators=120, max_depth=45, min_samples_leaf=3,
-            n_jobs=-1, class_weight="balanced", random_state=42))),
+        ("tfidf", TfidfVectorizer(
+            max_features=8000, ngram_range=(1, 3),
+            min_df=2, sublinear_tf=True)),
+        ("clf", OneVsRestClassifier(
+            RandomForestClassifier(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                min_samples_leaf=min_samples_leaf,
+                class_weight=class_weight,
+                n_jobs=-1,
+                random_state=42
+            )
+        ))
     ])
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sample", type=int, default=None)
     args = ap.parse_args()
-    train_and_save(MODEL_NAME, build_pipeline(), MODEL_PATH, sample=args.sample)
+    candidates = [
+        ("trees=60, depth=20, leaf=1, balanced",
+         build_pipeline(60, 20, 1, "balanced")),
+        ("trees=90, depth=35, leaf=2, balanced",
+         build_pipeline(90, 35, 2, "balanced")),
+        ("trees=120, depth=45, leaf=3, none",
+         build_pipeline(120, 45, 3, None)),
+    ]
+    train_and_save(
+        MODEL_NAME, candidates[1][1], MODEL_PATH,
+        sample=args.sample, candidates=candidates
+    )
+
+
+if __name__ == "__main__":
+    main()

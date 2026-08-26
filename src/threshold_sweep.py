@@ -1,23 +1,20 @@
-"""Display the six saved OOF thresholds for each model."""
-
-from .config import LABELS
+"""Show the six thresholds saved from development-only OOF selection."""
 from .predictor import available_models, load_model
+from .config import LABELS
 
 
 def sweep():
-    print(f"{'Model':22s} " + " ".join(f"{l:19s}" for l in LABELS))
     results = {}
+    print(f"{'Model':22s} " + " ".join(f"{l:20s}" for l in LABELS))
     for name, path in available_models().items():
         bundle = load_model(path)
-        thresholds = bundle.get("thresholds", {})
-        if not thresholds:
-            thresholds = {l: bundle.get("threshold", 0.5) for l in LABELS}
+        thresholds = bundle["thresholds"]
         results[name] = thresholds
-        print(f"{name:22s} " + " ".join(f"{float(thresholds.get(l, 0.5)):.2f}{' '*16}" for l in LABELS))
-        print("  source:", bundle.get("threshold_source", "unknown"))
-
-    print("\nThresholds are selected from pooled 3-fold OOF predictions on the development set.")
-    print("The final test set is not used for threshold selection.")
+        print(f"{name:22s} " + " ".join(
+            f"{float(thresholds[l]):<20.2f}" for l in LABELS))
+    print("\nSaved OOF thresholds by model:")
+    for name, thresholds in results.items():
+        print(name, thresholds)
     return results
 
 
