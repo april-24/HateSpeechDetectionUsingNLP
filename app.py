@@ -212,7 +212,7 @@ def result_card(res, model_name, elapsed, original_text):
             "Probability": f"{res['probs'][l]:.1%}",
             "Threshold": f"{res['thresholds'][l]:.2f}",
         })
-    st.dataframe(pd.DataFrame(target_rows), hide_index=True, width="stretch")
+    st.dataframe(pd.DataFrame(target_rows), hide_index=True, use_container_width=True)
     if res["flagged"]:
         st.write("**Target groups associated with the harmful result:**")
         for l in res["flagged"]:
@@ -465,7 +465,7 @@ elif page == "Dataset Statistics":
 
     st.markdown("### Dataset Preview")
     st.caption("First few rows, comment text with its labels.")
-    st.dataframe(df.head(10), width="stretch")
+    st.dataframe(df.head(10), use_container_width=True)
 
     st.markdown("### Dataset Information")
     info_df = pd.DataFrame({
@@ -473,7 +473,7 @@ elif page == "Dataset Statistics":
         "Data type": [str(df[c].dtype) for c in df.columns],
         "Non-null count": [df[c].notna().sum() for c in df.columns],
     })
-    st.dataframe(info_df, width="stretch")
+    st.dataframe(info_df, use_container_width=True)
     st.caption(f"Memory usage: {df.memory_usage(deep=True).sum() / 1e6:.2f} MB")
 
     st.markdown("### Class Distribution (Abusive vs Clean)")
@@ -525,7 +525,7 @@ elif page == "Dataset Statistics":
         "Count": [int(df[l].sum()) for l in labels],
         "Percentage": [f"{df[l].mean():.1%}" for l in labels],
     })
-    st.dataframe(dist, width="stretch")
+    st.dataframe(dist, use_container_width=True)
 
     st.markdown("### NLP Workflow Overview")
     st.caption("From raw comment to final prediction:")
@@ -563,7 +563,7 @@ elif page == "Data Preprocessing":
     dupes = df[df.duplicated(subset=[text_col], keep=False)].head(5)
     if len(dupes):
         st.write("Example duplicate comments found in the raw data:")
-        st.dataframe(dupes[[text_col]], width="stretch")
+        st.dataframe(dupes[[text_col]], use_container_width=True)
     else:
         st.write("No duplicate comments found in a quick scan of this dataset.")
     st.caption("Duplicates are removed during merging (`crawler/merge_datasets.py`) "
@@ -613,7 +613,7 @@ elif page == "Data Preprocessing":
                     "Term": [feat_names[i] for i in nz],
                     "TF-IDF weight": [round(vec[0, i], 4) for i in nz],
                 }).sort_values("TF-IDF weight", ascending=False)
-                st.dataframe(tfidf_df, width="stretch")
+                st.dataframe(tfidf_df, use_container_width=True)
             else:
                 st.caption("None of these words are in the model's word-level vocabulary.")
 
@@ -632,7 +632,7 @@ elif page == "Data Preprocessing":
                             "TF-IDF weight": [round(cvec[0, i], 4) for i in cnz],
                         }).sort_values("TF-IDF weight", ascending=False).head(10)
                         st.caption("Example character n-grams extracted (top 10 by weight):")
-                        st.dataframe(example, width="stretch")
+                        st.dataframe(example, use_container_width=True)
         else:
             st.caption("Nothing left to vectorize after cleaning.")
     except Exception as e:
@@ -651,12 +651,12 @@ elif page == "Data Preprocessing":
     demo_df = df.sample(min(5, len(df)), random_state=1)[[text_col]].copy()
     demo_df["Cleaned"] = demo_df[text_col].apply(clean_text)
     demo_df.columns = ["Original", "Cleaned"]
-    st.dataframe(demo_df, width="stretch")
+    st.dataframe(demo_df, use_container_width=True)
 
     st.markdown("### Processed Dataset Preview")
     preview = df.head(10).copy()
     preview["cleaned_" + text_col] = preview[text_col].apply(clean_text)
-    st.dataframe(preview, width="stretch")
+    st.dataframe(preview, use_container_width=True)
 
 
 # ============================================================== Content Detection
@@ -705,7 +705,7 @@ elif page == "Content Detection":
                 c2.metric("Flagged", int(n_bad))
                 c3.metric("Clean", int(len(df_res) - n_bad))
                 st.dataframe(df_res[["Comment", "Harmful content", "Categories",
-                                     "Primary probability"]], width="stretch")
+                                     "Primary probability"]], use_container_width=True)
                 summary_charts(df_res, bundle)
                 st.markdown("#### 🧭 Suggested next step")
                 st.markdown(batch_suggestion(df_res))
@@ -724,7 +724,7 @@ elif page == "Content Detection":
                 if up.name.lower().endswith(".csv"):
                     raw = pd.read_csv(up)
                     st.write("Preview:")
-                    st.dataframe(raw.head(), width="stretch")
+                    st.dataframe(raw.head(), use_container_width=True)
                     col = st.selectbox("Which column holds the comment text?",
                                        list(raw.columns),
                                        help="Pick the column containing the "
@@ -744,7 +744,7 @@ elif page == "Content Detection":
                     c1.metric("Total", len(df_res))
                     c2.metric("Flagged", int(n_bad))
                     c3.metric("Flag rate", f"{n_bad/max(len(df_res),1):.0%}")
-                    st.dataframe(df_res, width="stretch")
+                    st.dataframe(df_res, use_container_width=True)
                     summary_charts(df_res, bundle)
                     st.markdown("#### 🧭 Suggested next step")
                     st.markdown(batch_suggestion(df_res))
@@ -817,7 +817,7 @@ elif page == "Content Detection":
                 c2.metric("Flagged", int(n_bad))
                 c3.metric("Flag rate", f"{n_bad/len(df_res):.0%}")
                 st.dataframe(df_res[["Comment", "Harmful content", "Categories",
-                                     "Primary probability"]], width="stretch")
+                                     "Primary probability"]], use_container_width=True)
                 summary_charts(df_res, bundle)
                 st.markdown("#### 🧭 Suggested next step")
                 st.markdown(batch_suggestion(df_res))
@@ -836,7 +836,7 @@ elif page == "Model Evaluation":
          "Algorithm Type": info["algorithm_type"]}
         for name, info in MODEL_INFO.items() if name in MODELS
     ])
-    st.dataframe(overview, width="stretch")
+    st.dataframe(overview, use_container_width=True)
 
     st.markdown("### Same-Comment Prediction (all models)")
     st.caption("Each model is judged against **its own** evidence-based "
@@ -865,7 +865,7 @@ elif page == "Model Evaluation":
             })
         cmp = pd.DataFrame(rows)
         st.dataframe(cmp[["Model", "Threshold used", "Prediction", "Categories",
-                          "Harmful-content probability", "Time (ms)"]], width="stretch")
+                          "Harmful-content probability", "Time (ms)"]], use_container_width=True)
         st.bar_chart(cmp.set_index("Model")[[pretty(l) for l in LABELS]].T)
         if cmp["Prediction"].nunique() > 1:
             st.warning("The models disagree on this comment.")
@@ -901,7 +901,7 @@ threshold slider.
                     "precision_macro", "recall_macro", "f1_macro",
                     "f1_weighted", "train_time_sec", "predict_time_sec"]
     display_cols = [c for c in display_cols if c in scores.columns]
-    st.dataframe(scores[display_cols], width="stretch")
+    st.dataframe(scores[display_cols], use_container_width=True)
 
     st.markdown("### Confusion Matrix")
     st.caption("Computed live on the test set for the model selected above.")
@@ -930,7 +930,7 @@ threshold slider.
         report = classification_report(y_test.values, pred, target_names=labels,
                                        output_dict=True, zero_division=0)
         report_df = pd.DataFrame(report).T.round(3)
-        st.dataframe(report_df, width="stretch")
+        st.dataframe(report_df, use_container_width=True)
 
     st.markdown("### Performance Visualization")
     metric_choice = st.selectbox("Metric to compare", 
