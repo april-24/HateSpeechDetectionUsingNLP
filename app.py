@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from src.config import (LABELS, PRIMARY_LABEL, pretty, SCORES_CSV, DATA_DIR,
-                        DEFAULT_THRESHOLDS)
+                        DEFAULT_THRESHOLDS, get_default_thresholds)
 from src.predictor import (available_models, load_model, predict,
                            explain, highlight_html, _label_probs)
 from src.preprocessing import clean_text, clean_text_steps
