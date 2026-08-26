@@ -88,12 +88,33 @@ def get_model(path):
 
 
 def selected_threshold(model_name):
-    """Read the OOF-selected threshold saved with the trained model bundle."""
+    """Read the OOF-selected primary harmful-content threshold."""
     path = MODELS.get(model_name)
     if path:
-        return float(get_model(path).get(
-            "threshold", DEFAULT_THRESHOLDS.get(model_name, DEFAULT_THRESHOLD)))
+        bundle = get_model(path)
+        return float(bundle.get(
+            "primary_threshold",
+            bundle.get("threshold", DEFAULT_THRESHOLDS.get(model_name, DEFAULT_THRESHOLD))))
     return DEFAULT_THRESHOLDS.get(model_name, DEFAULT_THRESHOLD)
+
+
+def selected_label_thresholds(model_name):
+    """Read all label-specific OOF-selected thresholds."""
+    path = MODELS.get(model_name)
+    if path:
+        bundle = get_model(path)
+        return bundle.get("label_thresholds", {})
+    return {}
+
+def default_model_from_oof():
+    """Select the interface default using development-only OOF abusive F1."""
+    try:
+        scores = pd.read_csv(SCORES_CSV)
+        if "primary_oof_f1" in scores.columns and not scores.empty:
+            return str(scores.loc[scores["primary_oof_f1"].idxmax(), "model"])
+    except Exception:
+        pass
+    return list(MODELS.keys())[0]
 
 
 @st.cache_data(show_spinner=False)
@@ -107,17 +128,19 @@ def analyze_many(bundle, texts, threshold):
     cleaned = [clean_text(t) for t in texts]
     P = _label_probs(bundle["pipeline"], cleaned)
     labels = bundle["labels"]
+    saved_thresholds = dict(bundle.get("label_thresholds", {}))
+    saved_thresholds[PRIMARY_LABEL] = float(threshold)
     rows = []
     for i, t in enumerate(texts):
         probs = {l: float(P[i][j]) for j, l in enumerate(labels)}
-        raw_flagged = [l for l in labels if probs[l] >= threshold]
+        raw_flagged = [l for l in labels if probs[l] >= float(saved_thresholds.get(l, threshold))]
         is_harmful = PRIMARY_LABEL in raw_flagged
         flagged = raw_flagged if is_harmful else []
         primary_probability = probs[PRIMARY_LABEL]
         rows.append({
             "Comment": t,
             "Harmful content": "YES" if is_harmful else "NO",
-            "Categories": ", ".join(pretty(l) for l in flagged) or "-",
+            "Categories": ", ".join(pretty(l) for l in flagged if l != PRIMARY_LABEL) or "-",
             "Primary probability": round(primary_probability, 3),
             **{pretty(l): round(probs[l], 3) for l in labels},
         })
@@ -271,7 +294,7 @@ def page_controls(show_model=True, show_threshold=True, key_prefix=""):
         model_default = selected_threshold(st.session_state.sel_model)
         with cols[i]:
             st.session_state.sel_threshold = st.slider(
-                "Detection sensitivity", 0.20, 0.90,
+                "Primary harmful-content threshold", 0.20, 0.90,
                 st.session_state.sel_threshold, 0.05, key=f"{key_prefix}_threshold",
                 help=f"Lower = flags more comments (higher recall). Higher = "
                      f"stricter (higher precision). This model's evidence-based "
@@ -355,7 +378,7 @@ if not MODELS:
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 if "sel_model" not in st.session_state:
-    st.session_state.sel_model = list(MODELS.keys())[0]
+    st.session_state.sel_model = default_model_from_oof()
 if "sel_threshold" not in st.session_state:
     st.session_state.sel_threshold = selected_threshold(st.session_state.sel_model)
 
@@ -904,15 +927,23 @@ between models or retuned after viewing final test results.
     st.dataframe(scores[display_cols], width="stretch")
 
     st.markdown("### Confusion Matrix")
-    st.caption("Computed live on the test set for the model selected above.")
+    st.caption("Computed on the untouched final test set using the model-specific OOF-selected thresholds; target-group predictions are gated by the primary harmful-content decision.")
     if st.button("Compute confusion matrices & classification report"):
         from sklearn.metrics import confusion_matrix, classification_report
         from src.common import prepare_data
         bundle = get_model(MODELS[st.session_state.sel_model])
-        with st.spinner("Running the model over the test set..."):
+        with st.spinner("Running the model over the untouched final test set..."):
             X_train, X_test, y_train, y_test, labels = prepare_data(DATA_DIR, verbose=False)
             P = _label_probs(bundle["pipeline"], list(X_test))
-            pred = (P >= 0.5).astype(int)
+            thresholds = dict(bundle.get("label_thresholds", {}))
+            thresholds[PRIMARY_LABEL] = selected_threshold(st.session_state.sel_model)
+            pred = np.zeros_like(P, dtype=int)
+            for idx, label in enumerate(labels):
+                pred[:, idx] = (P[:, idx] >= float(thresholds.get(label, 0.5))).astype(int)
+            primary_idx = labels.index(PRIMARY_LABEL)
+            target_idx = [i for i, label in enumerate(labels) if label != PRIMARY_LABEL]
+            if target_idx:
+                pred[:, target_idx] = pred[:, target_idx] * pred[:, [primary_idx]]
         cols = st.columns(3)
         for i, l in enumerate(labels):
             cm = confusion_matrix(y_test.values[:, i], pred[:, i])
@@ -943,18 +974,20 @@ between models or retuned after viewing final test results.
     st.markdown("### Overall Evaluation Summary")
     best_acc = scores.loc[scores["accuracy"].idxmax(), "model"]
     best_f1 = scores.loc[scores["f1_macro"].idxmax(), "model"]
+    best_primary = (scores.loc[scores["primary_oof_f1"].idxmax(), "model"]
+                    if "primary_oof_f1" in scores else None)
     fastest_train = scores.loc[scores["train_time_sec"].idxmin(), "model"] if "train_time_sec" in scores else None
     fastest_predict = scores.loc[scores["predict_time_sec"].idxmin(), "model"] if "predict_time_sec" in scores else None
 
     st.markdown(f"""
 - **Highest accuracy:** {best_acc}
 - **Best macro-F1 (balanced across categories):** {best_f1}
+- **Best primary harmful-content model (development OOF F1):** {best_primary}
 - **Fastest to train:** {fastest_train}
 - **Fastest to predict:** {fastest_predict}
 
 **Strengths & weaknesses:**
-- **Logistic Regression** — fast, interpretable and strong overall; a
-  solid default choice.
+- **Logistic Regression** — fast and interpretable; compare its primary harmful-content F1 with the other models before selecting the default.
 - **Linear SVM** — competitive on sparse TF-IDF features; its native margins
   are converted to probabilities using cross-validated sigmoid calibration.
 - **Random Forest** — often the highest raw accuracy and precision, at the

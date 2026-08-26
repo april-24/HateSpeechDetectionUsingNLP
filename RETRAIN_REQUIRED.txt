@@ -1,0 +1,25 @@
+UPDATED SYSTEM NOTE
+===================
+This ZIP contains the Version 1 system implementation upgraded with:
+- dedicated per-label OOF thresholds,
+- two-stage harmful-content -> target-group inference,
+- development-only behavioural testing,
+- primary-label OOF-F1 model selection,
+- untouched 20% final-test evaluation.
+
+The existing Version 1 joblib model files are retained as backward-compatible
+artifacts. To populate the new per-label thresholds in those model bundles,
+retrain all three models once from the project root:
+
+    python -m models.member1_logistic_regression
+    python -m models.member2_svm
+    python -m models.member3_random_forest
+
+Then run:
+
+    python compare_models.py
+    python run_behavioral_tests.py
+    python generate_final_artifacts.py
+
+Do NOT use the final 20% test set to select thresholds or models.
+The behavioural test CSV is development-only and must not be used for tuning.

@@ -22,25 +22,26 @@ import re
 # ----------------------------------------------------------------------------
 # Try to set up NLTK; fall back gracefully if unavailable.
 # ----------------------------------------------------------------------------
-_USE_NLTK = True
+_USE_NLTK = False
+_LEMMATIZER = None
+
+# NLTK is optional. Do not download corpora at runtime: deployments such as
+# Streamlit Community Cloud may not allow outbound downloads, and blocking on
+# ``nltk.download`` makes startup/training unreliable. If the required English
+# resources already exist locally, use them; otherwise fall back immediately.
 try:
     import nltk
     from nltk.corpus import stopwords
     from nltk.stem import WordNetLemmatizer
     from nltk.tokenize import word_tokenize
 
-    for pkg in ["punkt", "punkt_tab", "stopwords", "wordnet", "omw-1.4"]:
-        try:
-            nltk.download(pkg, quiet=True)
-        except Exception:
-            pass
-
     _STOPWORDS = set(stopwords.words("english"))
     _LEMMATIZER = WordNetLemmatizer()
+    # Touch the resource so a missing WordNet corpus triggers the fallback.
+    _ = _LEMMATIZER.lemmatize("test")
+    _USE_NLTK = True
 except Exception:
-    _USE_NLTK = False
     _LEMMATIZER = None
-    # Minimal fallback stopword list
     _STOPWORDS = set("""
         a an the and or but if while is are was were be been being to of in on for with
         as by at from into this that these those it its i you he she we they them his her
