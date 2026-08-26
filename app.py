@@ -232,7 +232,7 @@ def result_card(res, model_name, elapsed, original_text):
             unsafe_allow_html=True)
 
     st.info(f"**Why this result?** {explain(res)}")
-    st.caption(f"Fixed harmful-content rule: abusive probability {res["harmful_probability"]:.1%} vs threshold {res["harmful_threshold"]:.2f}. "
+    st.caption(f"Fixed harmful-content rule: abusive probability {res['harmful_probability']:.1%} vs threshold {res['harmful_threshold']:.2f}. "
                "Target-group thresholds are separate and contextual.")
 
     st.markdown("#### 🧭 Suggested next step")

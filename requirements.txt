@@ -1,19 +1,15 @@
 # Core
-pandas
-numpy
-scikit-learn
-matplotlib
-joblib
+pandas==2.2.3
+numpy==2.3.5
+scikit-learn==1.8.0
+matplotlib==3.10.8
+joblib==1.5.3
 
 # NLP preprocessing
-nltk
+nltk==3.9.1
 
 # Web application
 streamlit
 
 # Visualization
 wordcloud
-
-# Optional - only needed if you use the crawler tools (see crawler/CRAWLING_GUIDE.md)
-# praw               # for crawler/reddit_crawler.py
-# beautifulsoup4     # for crawler/generic_crawler.py

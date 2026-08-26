@@ -22,7 +22,7 @@ target-community outputs.
 1. A stratified 20% final test set is reserved.
 2. Development-only cross-validation is used for model configuration selection.
 3. TF-IDF is fitted independently inside every training fold.
-4. Three-fold OOF probabilities from a fixed 2,000-row subset of the 80% development data are used for threshold selection.
+4. Five-fold OOF probabilities from a full 80% development data are used for threshold selection.
 5. The `abusive` threshold is selected using harmful-content F1 with a minimum precision preference of 0.75; each target label gets its own OOF F1 threshold.
 6. The final pipeline is fitted on the complete development set.
 7. The selected thresholds are applied once to the untouched final test set.
@@ -74,7 +74,7 @@ for demonstration.
 app.py                         Streamlit application
 models/                        three member model definitions
 src/common.py                  protected holdout split
-src/train_utils.py             three-fold OOF selection and final training
+src/train_utils.py             five-fold OOF selection and final training
 src/predictor.py               prediction and local linear explanations
 src/preprocessing.py           cleaning and evasion normalisation
 results/model_scores.csv       final test and cross-validation summary
@@ -110,7 +110,7 @@ The five target labels (Race, Religion, Gender, Sexual Orientation, Miscellaneou
 
 ### Leakage-safe threshold and model selection
 
-The final 20% test set is kept untouched. Model configurations are selected using cross-validation within the 80% development data. Three-fold out-of-fold predictions from the development set are then used to select thresholds. The `abusive` threshold is optimized using harmful-content F1, with precision, recall and benign false-positive rate reported; each target label is optimized independently using its own F1.
+The final 20% test set is kept untouched. Model configurations are selected using cross-validation within the 80% development data. Five-fold out-of-fold predictions from the development set are then used to select thresholds. The `abusive` threshold is optimized using harmful-content F1, with precision, recall and benign false-positive rate reported; each target label is optimized independently using its own F1.
 
 The saved model bundle contains a `thresholds` dictionary and an OOF evidence CSV. The Streamlit interface does not expose a manual threshold slider, so the evaluated decision rule cannot be changed accidentally.
 
@@ -136,7 +136,7 @@ The final artifacts distinguish primary harmful-content metrics from the six-lab
 
 ### Final model/threshold notes
 
-The final implementation uses development-only cross-validation for model configuration and a separate three-fold OOF stage on a fixed 2,000-row subset of the 80% development data for threshold selection. The final 20% test set remains untouched for selection.
+The final implementation uses development-only cross-validation for model configuration and a separate five-fold OOF stage on a full 80% development data for threshold selection. The final 20% test set remains untouched for selection.
 
 For the primary `abusive` threshold, harmful-content F1 is the objective with a minimum precision preference of 0.75 to avoid an excessively aggressive moderation operating point. Precision, recall, F1, FPR and FNR are all reported. Each target-community label has its own independent OOF F1 threshold.
 

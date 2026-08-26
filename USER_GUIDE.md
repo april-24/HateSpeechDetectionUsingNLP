@@ -12,7 +12,7 @@ streamlit run app.py
 
 The application provides Logistic Regression, calibrated Linear SVM, and
 Random Forest. When a model is selected, its decision threshold is read from
-the saved model bundle. Each threshold was selected using three-fold
+the saved model bundle. Each threshold was selected using five-fold
 out-of-fold predictions on the development set, not the final test set.
 
 There is no sensitivity/threshold slider. The evaluated threshold is fixed so the same decision rule is used during demonstration and batch analysis.

@@ -2,8 +2,8 @@
 
 The project uses:
 1. An untouched 20% final test set.
-2. Development-only model selection by cross-validation.
-3. Three-fold out-of-fold (OOF) probabilities on the development set.
+2. Development-only model selection by five-fold cross-validation.
+3. Five-fold out-of-fold (OOF) probabilities on the full development set.
 4. One independently selected threshold per label from OOF predictions.
 5. A primary ``abusive`` threshold used exclusively for the final YES/NO verdict.
 6. A final fit on all 80% development data, followed by one final test evaluation.
@@ -36,14 +36,19 @@ LABEL_NAMES = ["abusive", "Race", "Religion", "Gender",
 def build_word_char_features(word_max_features=30000, char_max_features=10000,
                              word_ngram_range=(1, 3)):
     """TF-IDF with word unigrams/bigrams/trigrams plus character n-grams."""
-    # Word n-grams are the main feature representation. Trigrams are retained
-    # specifically to preserve phrases such as "go back to" and "do not
-    # belong". Character-level robustness is handled separately by the shared
-    # obfuscation normalisation in preprocessing.py.
+    # Word trigrams preserve phrases such as "go back to" and "do not belong".
+    # Character 3-5 grams complement them by retaining partial patterns under
+    # punctuation insertion and spelling obfuscation.
     return FeatureUnion([
         ("word", TfidfVectorizer(
             max_features=word_max_features,
             ngram_range=word_ngram_range,
+            min_df=2,
+            sublinear_tf=True)),
+        ("char", TfidfVectorizer(
+            max_features=char_max_features,
+            analyzer="char_wb",
+            ngram_range=(3, 5),
             min_df=2,
             sublinear_tf=True)),
     ])
@@ -204,22 +209,16 @@ def select_model_configuration(model_name, pipeline, X_dev, y_dev, candidates):
     """Select model hyperparameters using only development-side CV.
 
     ``candidates`` is a list of fully constructed pipelines. The final test
-    set is never visible here. A compact three-fold search is used to keep
-    training practical while still satisfying development-only CV selection.
+    set is never visible here. Five-fold cross-validation is used consistently
+    for development-side model configuration selection.
     """
-    # Keep configuration search practical while remaining strictly inside the
-    # 80% development partition. A fixed development-only subset is used for
-    # the search; the final model and the OOF threshold stage still use all
-    # development rows.
-    if len(X_dev) > 3000:
-        sel_idx = np.random.RandomState(RANDOM_STATE).choice(
-            len(X_dev), size=2000, replace=False)
-        X_sel = X_dev.iloc[sel_idx].reset_index(drop=True)
-        y_sel = y_dev.iloc[sel_idx].reset_index(drop=True)
-    else:
-        X_sel, y_sel = X_dev.reset_index(drop=True), y_dev.reset_index(drop=True)
-    key = stratification_key(y_sel, min_count=3)
-    splitter = StratifiedKFold(n_splits=2, shuffle=True, random_state=RANDOM_STATE)
+    # The complete 80% development partition is used for model-selection CV.
+    # y_sel is explicitly aligned with X_sel so fold indices can never be
+    # accidentally applied to a different label table.
+    X_sel = X_dev.reset_index(drop=True)
+    y_sel = y_dev.reset_index(drop=True)
+    key = stratification_key(y_sel, min_count=5)
+    splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
     rows = []
     best_pipeline = None
     best_key = (-1.0, -1.0, float("inf"))
@@ -234,7 +233,7 @@ def select_model_configuration(model_name, pipeline, X_dev, y_dev, candidates):
             prob = label_probabilities(
                 fitted, list(X_sel.iloc[valid_idx]))[:, 0]
             stats = _primary_stats(
-                y_dev.iloc[valid_idx].values[:, 0],
+                y_sel.iloc[valid_idx].values[:, 0],
                 (prob >= 0.50).astype(int))
             fold_scores.append(stats["f1"])
             fold_fprs.append(stats["fpr"])
@@ -276,26 +275,18 @@ def train_and_save(model_name, pipeline, model_path, sample=None,
         pipeline, selection_rows = select_model_configuration(
             model_name, pipeline, X_dev, y_dev, candidates)
 
-    # OOF threshold selection uses a fixed development-only subset to keep
-    # repeated pipeline fitting practical. It is still strictly separated
-    # from the final 20% test set and every row in the OOF subset receives a
-    # prediction from a fold that did not train on that row.
-    if len(X_dev) > 5000:
-        oof_idx = np.random.RandomState(RANDOM_STATE + 1).choice(
-            len(X_dev), size=2000, replace=False)
-        X_oof = X_dev.iloc[oof_idx].reset_index(drop=True)
-        y_oof = y_dev.iloc[oof_idx].reset_index(drop=True)
-    else:
-        X_oof, y_oof = X_dev.reset_index(drop=True), y_dev.reset_index(drop=True)
-
-    fold_key = stratification_key(y_oof, min_count=3)
-    splitter = StratifiedKFold(n_splits=3, shuffle=True,
+    # Threshold selection uses the COMPLETE 80% development set. Every row
+    # receives a prediction from a fold that did not train on that row.
+    X_oof = X_dev.reset_index(drop=True)
+    y_oof = y_dev.reset_index(drop=True)
+    fold_key = stratification_key(y_oof, min_count=5)
+    splitter = StratifiedKFold(n_splits=5, shuffle=True,
                                random_state=RANDOM_STATE)
     oof_probabilities = np.zeros((len(X_oof), len(labels)), dtype=float)
     fold_f1 = []
     cv_started = time.time()
 
-    print(f"\nThree-fold OOF threshold selection on development-only rows: {model_name}")
+    print(f"\nFive-fold OOF threshold selection on the full 80% development set: {model_name}")
     for fold, (train_idx, valid_idx) in enumerate(
             splitter.split(X_oof, fold_key), start=1):
         fold_pipeline = clone(pipeline)
@@ -303,7 +294,13 @@ def train_and_save(model_name, pipeline, model_path, sample=None,
         p = label_probabilities(
             fold_pipeline, list(X_oof.iloc[valid_idx]))
         oof_probabilities[valid_idx] = p
-        print(f"  completed fold {fold}/3")
+        fold_pred = np.column_stack([
+            p[:, i] >= 0.50
+            for i, label in enumerate(labels)
+        ]).astype(int)
+        fold_f1.append(float(f1_score(
+            y_oof.iloc[valid_idx].values, fold_pred, average="micro", zero_division=0)))
+        print(f"  completed fold {fold}/5")
 
     thresholds, threshold_evidence = choose_thresholds(
         y_oof.values, oof_probabilities, labels)
@@ -350,6 +347,8 @@ def train_and_save(model_name, pipeline, model_path, sample=None,
         "oof_primary_recall": round(float(primary_oof["recall"]), 4),
         "oof_primary_fpr": round(float(primary_oof["false_positive_rate"]), 4),
         "oof_selection_time_sec": round(fold_time, 3),
+        "cv_fold_f1_micro_mean": round(float(np.mean(fold_f1)), 4),
+        "cv_fold_f1_micro_std": round(float(np.std(fold_f1, ddof=1)), 4),
     })
     save_result(result)
     _save_per_label(model_name, y_test.values, y_pred, labels, thresholds)
@@ -361,8 +360,8 @@ def train_and_save(model_name, pipeline, model_path, sample=None,
         "threshold": thresholds["abusive"],  # compatibility with older code
         "primary_label": "abusive",
         "threshold_source": (
-            "Three-fold OOF predictions on a fixed 2,000-row subset of the "
-            "80% development set; abusive selected by primary harmful-content F1"
+            "Five-fold OOF predictions on the full 80% development set; "
+            "abusive selected by primary harmful-content F1"
         ),
         "threshold_objective": {
             "abusive": "harmful-content F1 with benign-FPR/precision tie-break",
