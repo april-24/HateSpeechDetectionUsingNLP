@@ -56,9 +56,7 @@ YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "AIzaSyCQoumnsgNBTL_z2aNwjd3
 SEARCH_QUERIES = [
     "gender pay gap debate",
     "women in gaming controversy",
-    "feminism backlash reaction",
     "disability rights news",
-    "refugee crisis debate",
     "immigration policy debate",
 ]
 
@@ -67,8 +65,8 @@ VIDEO_IDS = [
     # "https://www.youtube.com/watch?v=XXXXXXXXXXX",
 ]
 
-VIDEOS_PER_QUERY = 5          # how many videos to pull comments from, per search query
-MAX_COMMENTS_PER_VIDEO = 100  # up to 100 per API page
+VIDEOS_PER_QUERY = 3          # how many videos to pull comments from, per search query
+MAX_COMMENTS_PER_VIDEO = 50  # up to 50 per API page
 REGION = "US"                 # bias search results toward English-speaking region
 OUTPUT_CSV = "data/crawled/youtube_english_raw.csv"
 REQUEST_DELAY = 1.0           # seconds between API calls (politeness / quota pacing)
