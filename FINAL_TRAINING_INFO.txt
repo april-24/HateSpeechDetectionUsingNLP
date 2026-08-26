@@ -1,0 +1,12 @@
+Final training completed on the full HateXplain dataset.
+
+Evaluation procedure:
+- 80% development set / 20% untouched final test set.
+- Five-fold out-of-fold threshold selection on the development set.
+- Separate OOF-selected threshold for the primary abusive label and each target label.
+- Two-stage prediction: harmful-content decision first, target-group labels second.
+- The final test set is not used for threshold or model selection.
+
+Implementation notes:
+- Linear SVM uses CalibratedClassifierCV(sigmoid, cv=2) to produce probability estimates.
+- Random Forest uses 20 trees in the shipped final model to keep full-data five-fold retraining reproducible in the deployment environment.

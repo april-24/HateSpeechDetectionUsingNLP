@@ -1,0 +1,91 @@
+model,case_type,expected_harmful,predicted_harmful,primary_probability,primary_threshold,text
+Logistic Regression,obvious_harmful,1,1,0.5753208428700883,0.27,you are a stupid idiot nobody likes you
+Logistic Regression,obvious_harmful,1,1,0.5280413692118474,0.27,you are a pathetic loser and nobody wants you here
+Logistic Regression,obvious_harmful,1,1,0.578058177597588,0.27,I hate you and you are worthless
+Logistic Regression,obvious_harmful,1,1,0.717227449335049,0.27,you are disgusting and should be ashamed
+Logistic Regression,obvious_harmful,1,1,0.44819885309927765,0.27,shut up you stupid fool
+Logistic Regression,obvious_harmful,1,0,0.15820296514720514,0.27,you are completely useless
+Logistic Regression,implicit_identity_attack,1,1,0.5135431156068029,0.27,go back to your own country you don't belong here
+Logistic Regression,implicit_identity_attack,1,1,0.36558115975366495,0.27,people like you don't belong in this country
+Logistic Regression,implicit_identity_attack,1,0,0.20366213267465377,0.27,you should leave this place and go where you came from
+Logistic Regression,implicit_identity_attack,1,0,0.23500707481199498,0.27,we don't want your kind here
+Logistic Regression,implicit_identity_attack,1,1,0.32872152258964527,0.27,keep people like you out of our community
+Logistic Regression,implicit_identity_attack,1,1,0.3384183967735534,0.27,go somewhere else if you don't fit in here
+Logistic Regression,hard_negative,0,1,0.2706897541302204,0.27,"Thanks for sharing, this was really useful!"
+Logistic Regression,hard_negative,0,0,0.2630155527064112,0.27,Thank you for your helpful explanation
+Logistic Regression,hard_negative,0,0,0.20297204024871993,0.27,I appreciate your detailed response
+Logistic Regression,hard_negative,0,0,0.1080009610737822,0.27,"We disagree about this policy, but I respect your view"
+Logistic Regression,hard_negative,0,1,0.3682717329618337,0.27,The race begins at nine in the morning
+Logistic Regression,hard_negative,0,0,0.03102284795038587,0.27,The community held a charity event for local families
+Logistic Regression,benign_identity_discussion,0,0,0.15726114296644242,0.27,Muslim students organised a food donation drive
+Logistic Regression,benign_identity_discussion,0,0,0.08864351580952055,0.27,Women participated in the leadership meeting
+Logistic Regression,benign_identity_discussion,0,0,0.05172976344282352,0.27,The Christian community held a charity event
+Logistic Regression,benign_identity_discussion,0,1,0.3772852638423304,0.27,The discussion covered racial equality and inclusion
+Logistic Regression,benign_identity_discussion,0,0,0.04678291888897547,0.27,People from many countries attended the festival
+Logistic Regression,benign_identity_discussion,0,0,0.15760867285836633,0.27,The university supports students of different religions
+Logistic Regression,obfuscated_harmful,1,1,0.363910144280752,0.27,you are a st00pid idiot nobody likes you
+Logistic Regression,obfuscated_harmful,1,1,0.578058177597588,0.27,I h4te you and you are w0rthless
+Logistic Regression,obfuscated_harmful,1,1,0.3864644089814437,0.27,g.o b4ck to your own c0untry
+Logistic Regression,obfuscated_harmful,1,1,0.4287015979369516,0.27,w0men are too stuuuupid to lead
+Logistic Regression,obfuscated_harmful,1,1,0.4634113542692108,0.27,g4y people are d.i.s.g.u.s.t.i.n.g
+Logistic Regression,obfuscated_harmful,1,1,0.6469602758540149,0.27,you p4thetic l0ser
+Linear SVM,obvious_harmful,1,1,0.5972560685984578,0.46,you are a stupid idiot nobody likes you
+Linear SVM,obvious_harmful,1,1,0.6463800174762938,0.46,you are a pathetic loser and nobody wants you here
+Linear SVM,obvious_harmful,1,1,0.6309807592134571,0.46,I hate you and you are worthless
+Linear SVM,obvious_harmful,1,1,0.6574662319425403,0.46,you are disgusting and should be ashamed
+Linear SVM,obvious_harmful,1,1,0.5521059125957608,0.46,shut up you stupid fool
+Linear SVM,obvious_harmful,1,0,0.33573743725273564,0.46,you are completely useless
+Linear SVM,implicit_identity_attack,1,1,0.5481768630576952,0.46,go back to your own country you don't belong here
+Linear SVM,implicit_identity_attack,1,0,0.4130635903322222,0.46,people like you don't belong in this country
+Linear SVM,implicit_identity_attack,1,0,0.3761828863389896,0.46,you should leave this place and go where you came from
+Linear SVM,implicit_identity_attack,1,0,0.4299536408205964,0.46,we don't want your kind here
+Linear SVM,implicit_identity_attack,1,1,0.46918710595626767,0.46,keep people like you out of our community
+Linear SVM,implicit_identity_attack,1,1,0.4979305375587212,0.46,go somewhere else if you don't fit in here
+Linear SVM,hard_negative,0,0,0.39154555132932406,0.46,"Thanks for sharing, this was really useful!"
+Linear SVM,hard_negative,0,0,0.3417547967077589,0.46,Thank you for your helpful explanation
+Linear SVM,hard_negative,0,0,0.41870656562296377,0.46,I appreciate your detailed response
+Linear SVM,hard_negative,0,0,0.32446285497811006,0.46,"We disagree about this policy, but I respect your view"
+Linear SVM,hard_negative,0,1,0.5227928854089663,0.46,The race begins at nine in the morning
+Linear SVM,hard_negative,0,0,0.11588513691889038,0.46,The community held a charity event for local families
+Linear SVM,benign_identity_discussion,0,0,0.41220657495495666,0.46,Muslim students organised a food donation drive
+Linear SVM,benign_identity_discussion,0,0,0.18942134550664477,0.46,Women participated in the leadership meeting
+Linear SVM,benign_identity_discussion,0,0,0.15548705630974255,0.46,The Christian community held a charity event
+Linear SVM,benign_identity_discussion,0,1,0.5078714087024828,0.46,The discussion covered racial equality and inclusion
+Linear SVM,benign_identity_discussion,0,0,0.25201815987801246,0.46,People from many countries attended the festival
+Linear SVM,benign_identity_discussion,0,0,0.321598134346215,0.46,The university supports students of different religions
+Linear SVM,obfuscated_harmful,1,1,0.4752816321189443,0.46,you are a st00pid idiot nobody likes you
+Linear SVM,obfuscated_harmful,1,1,0.6309807592134571,0.46,I h4te you and you are w0rthless
+Linear SVM,obfuscated_harmful,1,1,0.5086931503371247,0.46,g.o b4ck to your own c0untry
+Linear SVM,obfuscated_harmful,1,1,0.5150828527037301,0.46,w0men are too stuuuupid to lead
+Linear SVM,obfuscated_harmful,1,1,0.5620308926569841,0.46,g4y people are d.i.s.g.u.s.t.i.n.g
+Linear SVM,obfuscated_harmful,1,1,0.6915793913646473,0.46,you p4thetic l0ser
+Random Forest,obvious_harmful,1,1,0.5084797590659089,0.42,you are a stupid idiot nobody likes you
+Random Forest,obvious_harmful,1,1,0.4706395325107235,0.42,you are a pathetic loser and nobody wants you here
+Random Forest,obvious_harmful,1,1,0.4537138814808568,0.42,I hate you and you are worthless
+Random Forest,obvious_harmful,1,1,0.47429713334265583,0.42,you are disgusting and should be ashamed
+Random Forest,obvious_harmful,1,1,0.5084797590659089,0.42,shut up you stupid fool
+Random Forest,obvious_harmful,1,1,0.4866702244510358,0.42,you are completely useless
+Random Forest,implicit_identity_attack,1,1,0.43349369773947205,0.42,go back to your own country you don't belong here
+Random Forest,implicit_identity_attack,1,1,0.4427709324927146,0.42,people like you don't belong in this country
+Random Forest,implicit_identity_attack,1,1,0.45703383508433404,0.42,you should leave this place and go where you came from
+Random Forest,implicit_identity_attack,1,1,0.4366615945720572,0.42,we don't want your kind here
+Random Forest,implicit_identity_attack,1,1,0.4793195663823471,0.42,keep people like you out of our community
+Random Forest,implicit_identity_attack,1,1,0.44629718851237354,0.42,go somewhere else if you don't fit in here
+Random Forest,hard_negative,0,1,0.4843239857811318,0.42,"Thanks for sharing, this was really useful!"
+Random Forest,hard_negative,0,1,0.45703383508433404,0.42,Thank you for your helpful explanation
+Random Forest,hard_negative,0,1,0.45703383508433404,0.42,I appreciate your detailed response
+Random Forest,hard_negative,0,1,0.45703383508433404,0.42,"We disagree about this policy, but I respect your view"
+Random Forest,hard_negative,0,1,0.47338153863861415,0.42,The race begins at nine in the morning
+Random Forest,hard_negative,0,0,0.41889537540687966,0.42,The community held a charity event for local families
+Random Forest,benign_identity_discussion,0,0,0.41108242313489035,0.42,Muslim students organised a food donation drive
+Random Forest,benign_identity_discussion,0,0,0.41506959228550366,0.42,Women participated in the leadership meeting
+Random Forest,benign_identity_discussion,0,1,0.4292528539062889,0.42,The Christian community held a charity event
+Random Forest,benign_identity_discussion,0,1,0.45703383508433404,0.42,The discussion covered racial equality and inclusion
+Random Forest,benign_identity_discussion,0,1,0.4232963100356358,0.42,People from many countries attended the festival
+Random Forest,benign_identity_discussion,0,1,0.44655835383294,0.42,The university supports students of different religions
+Random Forest,obfuscated_harmful,1,1,0.43096009914376926,0.42,you are a st00pid idiot nobody likes you
+Random Forest,obfuscated_harmful,1,1,0.4537138814808568,0.42,I h4te you and you are w0rthless
+Random Forest,obfuscated_harmful,1,1,0.44423034431143255,0.42,g.o b4ck to your own c0untry
+Random Forest,obfuscated_harmful,1,1,0.4594136709018673,0.42,w0men are too stuuuupid to lead
+Random Forest,obfuscated_harmful,1,1,0.4272102037129886,0.42,g4y people are d.i.s.g.u.s.t.i.n.g
+Random Forest,obfuscated_harmful,1,1,0.5074499150232488,0.42,you p4thetic l0ser
