@@ -11,22 +11,28 @@ streamlit run app.py
 ## Select a model
 
 The application provides Logistic Regression, calibrated Linear SVM, and
-Random Forest. When a model is selected, its decision threshold is read from
-the saved model bundle. Each threshold was selected using five-fold
-out-of-fold predictions on the development set, not the final test set.
+Random Forest. When a model is selected, the saved six-label threshold
+configuration is loaded from its model bundle. Thresholds were selected from
+OOF predictions on the development set, not from the final test set.
 
-The sensitivity slider can be used for demonstration, but changing it creates
-an operating point that is different from the officially evaluated result.
+The Content Detection page does **not** let a manual slider alter the official
+reported operating point. This avoids confusing a demonstration threshold with
+an evaluated result.
 
 ## Interpret an output
 
 - **Harmful-content probability** is the primary moderation output.
-- A post is flagged only when this primary probability crosses the threshold.
+- The primary `abusive` threshold controls the harmful-content YES/NO verdict.
+- Each target-community label has its own threshold, so their decisions are
+  not forced to use the same cutoff.
 - Target-community probabilities are supporting outputs. They indicate which
   community the language may concern; they cannot create a harmful verdict by
   themselves.
+- Borderline cases can be shown as **Needs Human Review** when the harmful
+  probability is close to its primary threshold and a target-community output
+  is also positive.
 - Highlighted words are model contributions rather than causes. They are
-  available for the linear models. Random Forest highlighting is intentionally
+  available for linear models. Random Forest highlighting is intentionally
   disabled because its global feature importance is not a local explanation.
 
 ## Pages
@@ -55,13 +61,14 @@ Use one of three tabs:
 2. **Import CSV** - select a text column and analyse rows in a file.
 3. **Social Media URL** - use supported public integrations where configured.
 
-Always review flagged posts manually before acting.
+All three paths use exactly the same per-label threshold logic. Always review
+flagged or borderline posts manually before acting.
 
 ### Model Evaluation
 
-Shows final-test metrics and side-by-side model predictions. Official metrics
-come from the untouched 20% final test set using the threshold saved with each
-model.
+Shows primary harmful-content metrics separately from multilabel metrics and
+allows side-by-side model predictions. Official metrics come from the
+untouched 20% final test set using the fixed thresholds saved with each model.
 
 ## Safety and limitations
 

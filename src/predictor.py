@@ -21,7 +21,8 @@ import numpy as np
 import joblib
 
 from .preprocessing import clean_text
-from .config import LABELS, PRIMARY_LABEL, pretty, MODEL_FILES
+from .config import (LABELS, PRIMARY_LABEL, pretty, MODEL_FILES, DEFAULT_THRESHOLDS,
+                     BORDERLINE_REVIEW_ENABLED, BORDERLINE_MARGIN)
 
 
 def available_models():
@@ -60,28 +61,54 @@ def _label_probs(pipeline, texts):
     return np.asarray(pipeline.predict_proba(texts))
 
 
-def predict(bundle, text, threshold=0.5):
-    """
-    Analyze one comment.
-    Returns a dict:
-        probs   : {label: probability}
-        preds   : {label: 0/1}
-        flagged : list of labels predicted positive
-        is_harmful: bool (the primary harmful-content label is positive)
-        words   : list of influential words (for highlighting)
+def get_thresholds(bundle, model_name=None):
+    """Return the saved per-label threshold dictionary."""
+    thresholds = bundle.get("thresholds")
+    if isinstance(thresholds, dict):
+        return {label: float(thresholds.get(label, 0.5)) for label in bundle.get("labels", LABELS)}
+    # Backward compatibility for old bundles with one scalar threshold.
+    labels = bundle.get("labels", LABELS)
+    fallback = DEFAULT_THRESHOLDS.get(model_name, {}) if model_name else {}
+    scalar = float(bundle.get("threshold", 0.5))
+    return {label: float(fallback.get(label, scalar)) for label in labels}
+
+
+def predict(bundle, text, threshold=None, model_name=None):
+    """Analyze one comment using the saved threshold for EACH label.
+
+    ``abusive`` alone controls the primary harmful-content YES/NO verdict.
+    Target-community labels are contextual and cannot turn a clean comment
+    into a harmful verdict.
     """
     labels = bundle["labels"]
     pipe = bundle["pipeline"]
     cleaned = clean_text(text)
 
+    thresholds = get_thresholds(bundle, model_name=model_name)
+    # Optional scalar threshold is retained only as a demonstration override;
+    # reported evaluation results always use the saved per-label thresholds.
+    if threshold is not None:
+        thresholds = {label: float(threshold) for label in labels}
+        override_used = True
+    else:
+        override_used = False
+
     p = _label_probs(pipe, [cleaned])[0]
     probs = {lab: float(p[i]) for i, lab in enumerate(labels)}
-    preds = {lab: int(p[i] >= threshold) for i, lab in enumerate(labels)}
+    preds = {lab: int(p[i] >= thresholds[lab]) for i, lab in enumerate(labels)}
     is_harmful = bool(preds.get(PRIMARY_LABEL, 0))
-    raw_flagged = [lab for lab in labels if preds[lab] == 1]
-    # Target-community outputs provide context. They must never create a
-    # harmful-content verdict by themselves.
+    raw_flagged = [lab for lab in labels if lab != PRIMARY_LABEL and preds[lab] == 1]
     flagged = raw_flagged if is_harmful else []
+
+    primary_probability = probs.get(PRIMARY_LABEL, 0.0)
+    primary_threshold = thresholds.get(PRIMARY_LABEL, 0.5)
+    target_positive = len(raw_flagged) > 0
+    borderline = bool(
+        BORDERLINE_REVIEW_ENABLED and
+        (not is_harmful) and
+        target_positive and
+        primary_probability >= max(0.0, primary_threshold - BORDERLINE_MARGIN)
+    )
 
     words = _influential_words(pipe, cleaned, labels, flagged)
 
@@ -89,11 +116,17 @@ def predict(bundle, text, threshold=0.5):
         "probs": probs,
         "preds": preds,
         "flagged": flagged,
-        "is_harmful": is_harmful,
         "raw_flagged": raw_flagged,
+        "is_harmful": is_harmful,
+        "primary_probability": primary_probability,
+        "primary_threshold": primary_threshold,
+        "thresholds": thresholds,
+        "threshold": primary_threshold,
+        "borderline_review": borderline,
+        "decision": "HARMFUL" if is_harmful else ("NEEDS_REVIEW" if borderline else "CLEAN"),
         "words": words,
         "cleaned": cleaned,
-        "threshold": threshold,
+        "manual_threshold_override": override_used,
     }
 
 
@@ -200,16 +233,24 @@ def highlight_html(original_text, influential_words):
 
 def explain(result):
     """Build a short plain-English explanation of the prediction."""
+    if result.get("borderline_review"):
+        return ("Needs human review. The primary harmful-content probability is "
+                f"{result['primary_probability']:.2f}, close to its {result['primary_threshold']:.2f} "
+                "OOF-selected threshold, while at least one target-community label is positive.")
     if not result["is_harmful"]:
-        return ("No harmful content detected. The primary harmful-content "
-                f"probability did not cross the {result['threshold']:.2f} threshold.")
+        return ("No harmful content detected. The primary harmful-content probability "
+                f"({result['primary_probability']:.2f}) did not cross its "
+                f"{result['primary_threshold']:.2f} OOF-selected threshold.")
     cats = [pretty(l) for l in result["flagged"]]
     words = result["words"]
-    msg = "Flagged as " + ", ".join(cats) + "."
-    if words:
-        msg += " The strongest contributing word(s) were: " + \
-               ", ".join(words[:5]) + "."
+    msg = "Flagged as harmful"
+    if cats:
+        msg += " with " + ", ".join(cats) + "."
     else:
-        msg += (" No single word dominated — the decision came from the overall "
-                "wording rather than one term.")
+        msg += "."
+    if words:
+        msg += " The strongest contributing word(s) were: " + ", ".join(words[:5]) + "."
+    else:
+        msg += (" No single word was presented as the cause of the decision; the "
+                "result reflects the model's learned pattern over the text.")
     return msg
