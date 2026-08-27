@@ -1,4 +1,0 @@
-model,detected,total,detection_rate,interpretation
-Linear SVM,5,6,0.8333333333333334,Qualitative demonstration; not a claim of adversarial robustness.
-Logistic Regression,5,6,0.8333333333333334,Qualitative demonstration; not a claim of adversarial robustness.
-Random Forest,6,6,1.0,Qualitative demonstration; not a claim of adversarial robustness.
