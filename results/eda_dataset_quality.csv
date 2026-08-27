@@ -1,0 +1,2 @@
+eda_training_dataset,original_hatexplain_record_count,selected_dataset_raw_record_count,selected_dataset_missing_comments,selected_dataset_duplicate_comments,records_empty_after_cleaning,usable_record_count,development_count,final_test_count
+final_hateXplain.csv,20109,20109,0,0,1,20108,16086,4022

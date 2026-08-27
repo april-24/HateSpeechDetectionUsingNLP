@@ -80,7 +80,7 @@ c3.metric("Remaining", len(remaining))
 if len(remaining) == 0:
     st.success("All comments in this file are labeled! 🎉 Run "
               "`python crawler/merge_datasets.py` next to add them to your training data.")
-    st.dataframe(done_df.tail(20), width="stretch")
+    st.dataframe(done_df.tail(20), use_container_width=True)
     st.stop()
 
 st.progress(len(done_comments) / max(len(raw_df), 1))
@@ -121,7 +121,7 @@ with st.form("label_form", clear_on_submit=True):
 
 st.divider()
 with st.expander("Recently labeled (for review)"):
-    st.dataframe(done_df.tail(10), width="stretch")
+    st.dataframe(done_df.tail(10), use_container_width=True)
 
 st.caption(f"Saving to: `{out_path}` — safe to close and resume anytime. "
           f"A teammate can open this same file and continue from where you left off.")

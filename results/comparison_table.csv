@@ -1,4 +1,4 @@
-model,harmful_precision,harmful_recall,harmful_f1,harmful_false_positive_rate,harmful_false_negative_rate,harmful_tn,harmful_fp,harmful_fn,harmful_tp,accuracy,f1_micro,f1_macro,train_time_sec,predict_time_sec,threshold_abusive
-Logistic Regression,0.7597,0.8524,0.8034,0.4242,0.1476,900,663,363,2096,0.8384,0.7245,0.6927,4.112,0.3076,0.37
-Linear SVM,0.7628,0.8451,0.8019,0.4133,0.1549,917,646,381,2078,0.8336,0.7126,0.6783,5.928,0.3514,0.49
-Random Forest,0.7729,0.7654,0.7691,0.3538,0.2346,1010,553,577,1882,0.8378,0.7104,0.6897,5.339,0.3039,0.47
+model,harmful_precision,harmful_recall,harmful_f1,harmful_false_positive_rate,harmful_false_negative_rate,harmful_tn,harmful_fp,harmful_fn,harmful_tp,accuracy,subset_accuracy,hamming_loss,precision_micro,recall_micro,f1_micro,precision_macro,recall_macro,f1_macro,precision_weighted,recall_weighted,f1_weighted,train_time_sec,predict_time_sec,threshold_abusive,oof_primary_f1,oof_primary_precision,oof_primary_recall,oof_primary_fpr
+Logistic Regression,0.7597,0.8524,0.8034,0.4242,0.1476,900,663,363,2096,0.8384,0.3705,0.1616,0.6797,0.7755,0.7245,0.649,0.7428,0.6927,0.6799,0.7755,0.7245,4.112,0.3076,0.37,0.7951,0.7539,0.841,0.4316
+Linear SVM,0.7628,0.8451,0.8019,0.4133,0.1549,917,646,381,2078,0.8336,0.3655,0.1664,0.6763,0.753,0.7126,0.6452,0.7158,0.6783,0.6812,0.753,0.715,5.928,0.3514,0.49,0.7893,0.7544,0.8277,0.4237
+Random Forest,0.7729,0.7654,0.7691,0.3538,0.2346,1010,553,577,1882,0.8378,0.3702,0.1622,0.6953,0.7262,0.7104,0.6677,0.7156,0.6897,0.6995,0.7262,0.7117,5.339,0.3039,0.47,0.7712,0.7707,0.7718,0.361

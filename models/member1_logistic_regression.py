@@ -7,7 +7,6 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.train_utils import train_and_save
 from src.train_utils import train_and_save, build_word_char_features
 from src.config import RESULTS_DIR
 

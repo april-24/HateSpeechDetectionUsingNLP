@@ -4,9 +4,9 @@ merge_datasets.py
 Combines the original HateXplain dataset with your newly crawled + labeled
 Malaysian comments into one training file: data/combined_dataset.csv
 
-After running this, retrain the models as usual - src/data_loader.py
-automatically prefers combined_dataset.csv over the original file (see
-find_csv() in src/data_loader.py), so no other code changes are needed.
+The merge always starts from data/final_hateXplain.csv, never from an existing
+combined_dataset.csv. This prevents an earlier combined file from becoming the
+input base on repeated runs.
 
 Run from the project root:
     python crawler/merge_datasets.py
@@ -18,7 +18,7 @@ import glob
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.data_loader import load_dataset, LABEL_COLS
+from src.data_loader import build_labels, LABEL_COLS, load_dataset
 
 CRAWLED_DIR = "data/crawled"
 OUTPUT_PATH = "data/combined_dataset.csv"
@@ -29,8 +29,14 @@ def find_labeled_files():
 
 
 def main():
-    print("Loading original dataset...")
-    original_df, text_col, labels = load_dataset("data", verbose=False)
+    print("Loading original HateXplain dataset explicitly...")
+    original_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "final_hateXplain.csv")
+    raw_original = pd.read_csv(original_path)
+    if "comment" not in raw_original.columns:
+        raise ValueError(f"Original dataset missing 'comment': {original_path}")
+    raw_original = raw_original.dropna(subset=["comment"]).copy()
+    raw_original["comment"] = raw_original["comment"].astype(str)
+    original_df = pd.concat([raw_original[["comment"]], build_labels(raw_original)], axis=1)
     print(f"  {len(original_df):,} comments")
 
     labeled_files = find_labeled_files()

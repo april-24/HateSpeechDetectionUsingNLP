@@ -1,35 +1,35 @@
-# HarmShield - Hate and Offensive Content Detection
+# HarmShield — Hate and Offensive Content Detection
 
-HarmShield is an educational NLP application that compares Logistic Regression,
-calibrated Linear SVM, and Random Forest pipelines on the HateXplain dataset.
-The system predicts a primary harmful-content output and five supporting
-target-community outputs.
+HarmShield is an educational NLP prototype for BMCS2074 Artificial Intelligence. It detects **hate and offensive content** in individual English posts and predicts five target-community annotations for context.
 
-## Important interpretation
+## Scope and decision rule
 
-- `abusive` is the primary harmful-content output. It is 1 when HateXplain's
-  original label is `offensive` or `hatespeech`.
-- Race, Religion, Gender, Sexual Orientation, and Miscellaneous are
-  target-community annotations.
-- A target-community prediction does **not** independently create a harmful
-  verdict. The application flags a post only when the primary output crosses
-  the selected model's threshold.
-- This is not a dedicated cyberbullying dataset and the system does not infer
-  repeated behaviour, a victim-aggressor relationship, or conversation history.
+HateXplain contains individual posts, so the project is described as **hate and offensive content detection**, not complete cyberbullying detection. It does not claim to identify repeated behaviour, power imbalance, victim–aggressor relationships, or conversation-level cyberbullying.
 
-## Leakage-safe evaluation
+The six binary outputs are `abusive`, `Race`, `Religion`, `Gender`, `Sexual_Orientation`, and `Miscellaneous`. Only `abusive` controls the final verdict:
 
-1. A stratified 20% final test set is reserved and never used for tuning.
-2. The full 80% development partition is used for **five-fold cross-validation** for LR, SVM and RF configuration selection.
-3. TF-IDF is fitted inside each training fold, so validation/test vocabulary statistics do not influence training.
-4. A separate **five-fold OOF** procedure on the full 80% development data produces probabilities for threshold selection.
-5. The `abusive` threshold is selected from the primary label's OOF predictions using harmful-content F1 with a minimum precision preference of 0.75; each target label receives its own OOF F1 threshold.
-6. The selected pipeline is fitted on the complete 80% development set.
-7. The fixed thresholds are applied once to the untouched 20% final test set.
+```text
+abusive probability >= saved abusive threshold -> YES
+otherwise                                      -> NO
+```
 
-The final model bundles and result files in this ZIP were regenerated after the five-fold changes using the deterministic preprocessing configuration.
+Target-community predictions are contextual and can never turn a primary `NO` into `YES`.
 
-## Final results
+## Leakage-safe methodology
+
+The existing methodology is preserved: reserve 20% as the untouched final-test set; use the complete 80% development partition for five-fold model-configuration CV; fit TF-IDF inside fold training data; run a separate five-fold OOF procedure on the full development partition for thresholds; fit the selected model on all development data; then evaluate once on the untouched final test set.
+
+Expected cleaned split: **16,086 development + 4,022 final-test records**. Saved primary thresholds are LR **0.37**, calibrated Linear SVM **0.49**, and RF **0.47**.
+
+## Models
+
+| Model | Representation | Classifier |
+|---|---|---|
+| Logistic Regression | Word TF-IDF 1–3 + character TF-IDF 3–5 | One-vs-Rest LR, balanced class weight |
+| Calibrated Linear SVM | Word TF-IDF 1–3 + character TF-IDF 3–5 | One-vs-Rest LinearSVC with sigmoid calibration |
+| Random Forest | Word TF-IDF | One-vs-Rest Random Forest, balanced class weight |
+
+## Final-test evidence
 
 | Model | Abusive threshold | Harmful precision | Harmful recall | Harmful F1 | Benign FPR | Multilabel micro-F1 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -37,11 +37,11 @@ The final model bundles and result files in this ZIP were regenerated after the 
 | Linear SVM | 0.49 | **0.7628** | 0.8451 | 0.8019 | 0.4133 | 0.7126 |
 | Random Forest | 0.47 | 0.7729 | 0.7654 | 0.7691 | **0.3538** | 0.7104 |
 
-Based on the final-test **harmful-content F1**, Logistic Regression is the preferred model in this regenerated five-fold version. Random Forest has the lowest benign false-positive rate, while Logistic Regression has the highest harmful-content recall and F1.
+Logistic Regression remains the preferred/default model based mainly on final harmful-content F1 and multilabel micro-F1.
 
-### Regression checks
+## Regression Example Testing
 
-The required examples produce the following primary harmful-content verdicts for all three models:
+Only the three required regression examples remain as a separate prediction check. They do not belong to the training data and do not influence model selection, threshold selection, or final-test evaluation. Predictions use the real preprocessing, saved model bundle, and saved threshold.
 
 | Text | LR | SVM | RF |
 |---|---|---|---|
@@ -49,106 +49,113 @@ The required examples produce the following primary harmful-content verdicts for
 | `Thanks for sharing, this was really useful!` | NO | NO | NO |
 | `go back to your own country you don't belong here` | YES | YES | YES |
 
-## Reproducibility and deployment
+All three exact sentences are absent from `data/final_hateXplain.csv`, so they are not training rows. They are not hard-coded into `predict()`.
 
-- The project supports Python 3.11 (`runtime.txt`).
-- `scikit-learn`, NumPy, pandas, joblib, Streamlit and WordCloud are pinned in `requirements.txt`.
-- No NLTK resource is downloaded when the application starts. Text preprocessing uses deterministic built-in rules, which avoids cloud startup delays caused by network downloads.
-- All dataset, model and result paths are resolved from `src/config.py` using `Path(__file__).resolve()`. Therefore the project can be placed directly at the GitHub repository root **or inside a subfolder** without breaking paths.
-- Model training is not performed when Streamlit starts; the deployed app loads the saved model bundles from `results/`.
+The removed supplementary evaluation component and its generated evidence are not included in the final project. This keeps the final evaluation focused on the saved development/test methodology and the three required regression examples.
 
-## Installation and use
+## Revised files and commands
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python -m models.member1_logistic_regression
-python -m models.member2_svm
-python -m models.member3_random_forest
+Key files:
+
+```text
+app.py                              Streamlit prototype; no automatic retraining
+run_eda.py                          complete dataset EDA + quality CSV
+compare_models.py                  primary metrics/error-rate charts + comparison table
+generate_final_artifacts.py        all requested final result charts from saved evidence
+Hate_Offensive_Content_Detection.ipynb
+                                    technical demonstration and reproducibility record
+models/                             LR, calibrated SVM, RF model definitions
+src/common.py                       protected 80/20 split
+src/train_utils.py                 five-fold model selection + separate five-fold OOF thresholds
+src/predictor.py                   saved-threshold prediction engine
+results/model_scores.csv           final-test evidence
+results/per_label_*.csv            final per-label evidence
+results/threshold_evidence_*.csv   OOF threshold evidence
+results/oof_*.csv                  OOF probability evidence
+```
+
+Install:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+EDA:
+
+```bash
+python run_eda.py
+```
+
+Result charts (no retraining):
+
+```bash
 python compare_models.py
 python generate_final_artifacts.py
+```
+
+Notebook: open `Hate_Offensive_Content_Detection.ipynb`. It normally loads saved results. Full retraining is protected by `RUN_FULL_RETRAINING = False`.
+
+Streamlit:
+
+```bash
 streamlit run app.py
 ```
 
-## Application pages
-
-- **Home** - project scope, objective, models, and dataset summary.
-- **Dataset Statistics** - output prevalence and exploratory figures.
-- **Data Preprocessing** - step-by-step cleaning and TF-IDF preview.
-- **Content Detection** - individual, batch, CSV, or supported URL analysis.
-- **Model Evaluation** - final-test metrics, model comparison, and reports.
-
-## Main files
-
-```text
-app.py                         Streamlit application
-models/                        three member model definitions
-src/common.py                  protected holdout split
-src/train_utils.py             five-fold OOF selection and final training
-src/predictor.py               prediction and local linear explanations
-src/preprocessing.py           cleaning and evasion normalisation
-results/model_scores.csv       final test and cross-validation summary
-results/per_label_*.csv        final per-output results
-results/evasion_*.csv          expanded qualitative demonstration
-```
-
-## Known limitations
-
-- HateXplain concerns hate/offensive speech rather than cyberbullying behaviour.
-- English-only data from Twitter and Gab may not generalise to other domains.
-- Target-community annotations can occur in posts labelled normal.
-- Gender and Miscellaneous remain difficult outputs.
-- The small evasion demonstration is not an adversarial robustness benchmark.
-- Linear explanations show model contributions, not causes.
-- Random Forest word highlighting is disabled because global feature importance
-  is not a valid local explanation.
-- Automated moderation decisions require human review.
-
-
-## Final decision rule (revised)
-
-The system is a **hate/offensive content detector**, not a dedicated cyberbullying classifier. The HateXplain annotations are adapted into six binary outputs: `abusive` plus five target-community annotations.
-
-### Fixed primary YES/NO rule
-
-Only the `abusive` label determines the final harmful-content verdict:
-
-- `abusive probability >= saved abusive threshold` -> **YES**
-- otherwise -> **NO**
-
-The five target labels (Race, Religion, Gender, Sexual Orientation, Miscellaneous) are contextual outputs. They use their own independently selected thresholds and **cannot turn a NO into YES**.
-
-### Leakage-safe threshold and model selection
-
-The final 20% test set is kept untouched. Model configurations are selected using cross-validation within the 80% development data. Five-fold out-of-fold predictions from the development set are then used to select thresholds. The `abusive` threshold is optimized using harmful-content F1, with precision, recall and benign false-positive rate reported; each target label is optimized independently using its own F1.
-
-The saved model bundle contains a `thresholds` dictionary and an OOF evidence CSV. The Streamlit interface does not expose a manual threshold slider, so the evaluated decision rule cannot be changed accidentally.
-
-### Behavioural evaluation
-
-`data/behavioral_test_cases.csv` contains 48 regression/behavioural cases covering direct insults, implicit attacks, benign compliments, benign identity discussion, quotations, negations, obfuscated harmful text and hate-target examples. The three required regression checks are included:
-
-1. `you are a stupid idiot nobody likes you` -> YES
-2. `Thanks for sharing, this was really useful!` -> NO
-3. `go back to your own country you don't belong here` -> YES
-
-Run:
+Explicit training commands, when a new training run is intentionally required:
 
 ```bash
 python -m models.member1_logistic_regression
 python -m models.member2_svm
 python -m models.member3_random_forest
-python compare_models.py
-python generate_final_artifacts.py
 ```
 
-The final artifacts distinguish primary harmful-content metrics from the six-label multilabel metrics.
+## EDA outputs
 
-### Final model/threshold notes
+`run_eda.py` generates:
 
-The final implementation uses development-only cross-validation for model configuration and a separate five-fold OOF stage on a full 80% development data for threshold selection. The final 20% test set remains untouched for selection.
+- `eda_original_class_distribution.png`
+- `eda_label_counts.png`
+- `eda_text_length.png`
+- `eda_label_correlation.png`
+- `eda_positive_labels_per_comment.png`
+- `eda_target_count_distribution.png`
+- `eda_targets_by_abusive_status.png`
+- `eda_length_by_original_class.png`
+- `eda_split_distribution.png`
+- `eda_dataset_quality.csv`
 
-For the primary `abusive` threshold, harmful-content F1 is the objective with a minimum precision preference of 0.75 to avoid an excessively aggressive moderation operating point. Precision, recall, F1, FPR and FNR are all reported. Each target-community label has its own independent OOF F1 threshold.
+The EDA distinguishes all-six-output positive counts from five-label target-community counts and avoids interpreting multiple positive labels as multiple independent harmful behaviours.
 
-The shared TF-IDF representation evaluates word unigrams, bigrams and trigrams. The preprocessing stage also expands common contractions before punctuation removal, preserving negations such as `not` and `don't`/`do not` consistently.
+## Final result charts
+
+The project now generates:
+
+- `primary_metrics_comparison.png`
+- `primary_error_rates.png`
+- `per_label_f1_heatmap.png`
+- `per_label_precision_heatmap.png`
+- `per_label_recall_heatmap.png`
+- `threshold_comparison.png`
+- `oof_vs_final_test_f1.png`
+- `model_timing_comparison.png`
+- `primary_confusion_matrices.png`
+- `confusion_matrices_multilabel_final_test.png`
+
+These charts read the saved evidence CSVs and do not recalculate different final-test results.
+
+## Notebook purpose
+
+The notebook covers project introduction, setup, dataset loading, quality checks, EDA, preprocessing, TF-IDF, the 80/20 split, five-fold model selection, separate five-fold OOF thresholds, final evaluation, charts, per-label results, confusion matrices, the three regression examples, model comparison, limitations, and conclusion.
+
+## Streamlit behaviour
+
+The app has organised EDA/results tabs and handles missing images gracefully. It loads saved model bundles and results at startup and does not retrain automatically. There is no manual threshold slider.
+
+## Limitations
+
+- HateXplain is not a dedicated cyberbullying dataset; it contains individual posts rather than conversation histories or behaviour trajectories.
+- English-only short-form social-media data may not generalise to other languages or domains.
+- Target labels can occur in normal posts, and harmful posts can exist without a mapped target community.
+- Gender and Miscellaneous are weaker outputs in the supplied final-test evidence.
+- Model explanations are feature contributions, not causal explanations.
+- Statistical predictions can be wrong; deployment decisions require human judgement.
