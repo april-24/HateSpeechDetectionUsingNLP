@@ -1016,4 +1016,3 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
         st.caption("These figures are generated from the saved evaluation evidence. Opening this tab does not retrain models or recalculate metrics.")
         for filename, caption in RESULT_IMAGES:
             show_saved_image(filename, caption)
-
