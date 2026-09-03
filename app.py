@@ -745,8 +745,7 @@ elif page == "Dataset Statistics":
                 sort="-y", x_title=None, y_title="Comments",
             )
             compact_chart("Original class distribution", chart,
-                          "This chart shows the source dataset's Normal, Offensive and Hatespeech classes before they are combined into the binary Abusive output.")
-                          "This chart shows the source dataset's Normal, Offensive and Hatespeech classes before they are combined into the binary Abusive output. Comparing the bar heights also reveals the original class balance and helps explain why stratified data splitting is important during model evaluation.")
+                "This chart shows the source dataset's Normal, Offensive and Hatespeech classes before they are combined into the binary Abusive output. Comparing the bar heights also reveals the original class balance and helps explain why stratified data splitting is important during model evaluation.")
 
         label_counts = pd.DataFrame({
             "Label": [pretty(l) for l in labels],
