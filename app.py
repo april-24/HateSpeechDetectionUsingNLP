@@ -15,9 +15,7 @@ import time
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import altair as alt
 
 from src.config import (LABELS, PRIMARY_LABEL, pretty, SCORES_CSV, DATA_DIR, RESULTS_DIR,
                         DEFAULT_THRESHOLDS, get_default_thresholds)
@@ -33,17 +31,17 @@ PAGES = ["Home", "Dataset Statistics", "Data Preprocessing",
 
 MODEL_INFO = {
     "Logistic Regression": {
-        "feature_method": "TF-IDF word n-grams (1-3), up to 8,000 features",
+        "feature_method": "Word TF-IDF (1-3 grams, up to 5,000 features) + character TF-IDF (3-5 grams, up to 500 features)",
         "algorithm_type": "Linear classifier (One-vs-Rest, one per label)",
         "note": "Fast fitted probabilities and directly interpretable coefficients.",
     },
     "Linear SVM": {
-        "feature_method": "TF-IDF word n-grams (1-3), up to 8,000 features",
+        "feature_method": "Word TF-IDF (1-3 grams, up to 5,000 features) + character TF-IDF (3-5 grams, up to 500 features)",
         "algorithm_type": "Maximum-margin linear classifier (One-vs-Rest)",
         "note": "Strong on sparse text; probabilities use cross-validated sigmoid calibration.",
     },
     "Random Forest": {
-        "feature_method": "TF-IDF (unigrams, 8,000 features)",
+        "feature_method": "Word TF-IDF (1-3 grams, up to 5,000 features)",
         "algorithm_type": "Ensemble of decision trees (One-vs-Rest)",
         "note": "Captures non-linear word combinations; probability scores run "
                "more conservative than the other models' (a known property of "
@@ -52,38 +50,13 @@ MODEL_INFO = {
     },
 }
 
-EDA_IMAGES = [
-    ("eda_original_class_distribution.png", "Original class distribution"),
-    ("eda_label_counts.png", "Label counts"),
-    ("eda_text_length.png", "Text-length distribution"),
-    ("eda_label_correlation.png", "Label correlation"),
-    ("eda_positive_labels_per_comment.png", "Positive outputs per comment"),
-    ("eda_target_count_distribution.png", "Target-community count distribution"),
-    ("eda_targets_by_abusive_status.png", "Target labels by abusive status"),
-    ("eda_length_by_original_class.png", "Length by original class"),
-    ("eda_split_distribution.png", "Development vs final-test label distribution"),
-]
-
-RESULT_IMAGES = [
-    ("primary_metrics_comparison.png", "Primary precision / recall / F1"),
-    ("primary_error_rates.png", "Primary FPR / FNR"),
-    ("per_label_f1_heatmap.png", "Per-label F1 heatmap"),
-    ("per_label_precision_heatmap.png", "Per-label precision heatmap"),
-    ("per_label_recall_heatmap.png", "Per-label recall heatmap"),
-    ("threshold_comparison.png", "OOF-selected thresholds"),
-    ("oof_vs_final_test_f1.png", "OOF versus final-test F1"),
-    ("model_timing_comparison.png", "Model timing"),
-    ("primary_confusion_matrices.png", "Primary confusion matrices"),
-    ("confusion_matrices_multilabel_final_test.png", "Multilabel confusion matrices"),
-]
-
-
 # Minimal, website-style top navigation: plain text links, not big colored
 # buttons. Colors deliberately use currentColor/theme variables rather than
 # hardcoded hex values, so the nav stays readable in both Streamlit's light
 # and dark themes (hardcoded dark-grey text was invisible on the dark theme).
 NAVBAR_CSS = """
 <style>
+.block-container { padding-top: 1.35rem; padding-bottom: 3rem; }
 div[data-testid="stHorizontalBlock"] div.stButton > button {
     background: transparent !important;
     border: none !important;
@@ -102,6 +75,19 @@ div[data-testid="stHorizontalBlock"] div.stButton > button p {
     font-size: 15px !important;
     color: inherit !important;
 }
+.hs-hero {
+    padding: 2.2rem 2.4rem;
+    border: 1px solid rgba(128,128,128,.24);
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(37,99,235,.16), rgba(124,58,237,.10), rgba(16,185,129,.10));
+    margin: .5rem 0 1.4rem 0;
+}
+.hs-eyebrow { letter-spacing: .12em; text-transform: uppercase; font-size: .78rem; opacity: .72; font-weight: 700; }
+.hs-hero h1 { font-size: clamp(2.35rem, 5vw, 4.25rem); line-height: 1.02; margin: .45rem 0 .75rem 0; }
+.hs-hero p { max-width: 760px; font-size: 1.08rem; line-height: 1.65; opacity: .86; }
+.hs-chip { display:inline-block; margin:.25rem .35rem .1rem 0; padding:.36rem .68rem; border-radius:999px; background:rgba(128,128,128,.13); font-size:.82rem; }
+.hs-section-note { opacity:.78; line-height:1.55; margin:-.25rem 0 1rem 0; }
+.hs-chart-note { opacity:.78; line-height:1.55; margin:.2rem 0 1.4rem 0; }
 </style>
 """
 
@@ -138,13 +124,104 @@ def get_dataset():
     return df, text_col, labels
 
 
-def show_saved_image(filename, caption):
-    """Display a generated result/EDA image without failing if it is absent."""
-    path = RESULTS_DIR / filename
-    if path.exists():
-        st.image(str(path), caption=caption, use_container_width=True)
+MODEL_ORDER = ["Logistic Regression", "Linear SVM", "Random Forest"]
+MODEL_COLORS = ["#2563eb", "#7c3aed", "#059669"]
+
+
+def compact_chart(title, chart, explanation, height=310):
+    """Render a responsive interactive chart with comfortable side margins."""
+    st.markdown(f"#### {title}")
+    left, centre, right = st.columns([1.15, 7.7, 1.15])
+    with centre:
+        if isinstance(chart, alt.FacetChart):
+            rendered_chart = chart.copy(deep=True)
+            rendered_chart.spec = rendered_chart.spec.properties(height=height)
+        else:
+            rendered_chart = chart.properties(height=height)
+        st.altair_chart(
+            rendered_chart.configure_view(strokeWidth=0),
+            use_container_width=True,
+        )
+        st.markdown(
+            f"<div class='hs-chart-note'>{explanation}</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def interactive_bar(data, x, y, color=None, tooltip=None, sort=None,
+                    x_title=None, y_title=None, horizontal=False):
+    """Consistent bar chart with hover details."""
+    enc = {
+        "tooltip": tooltip or [alt.Tooltip(x), alt.Tooltip(y)],
+    }
+    if horizontal:
+        enc["x"] = alt.X(f"{x}:Q", title=x_title or x)
+        enc["y"] = alt.Y(f"{y}:N", title=y_title or y, sort=sort)
     else:
-        st.warning(f"Missing chart `{filename}`. Run the project result-generation command first.")
+        enc["x"] = alt.X(f"{x}:N", title=x_title or x, sort=sort)
+        enc["y"] = alt.Y(f"{y}:Q", title=y_title or y)
+    if color:
+        enc["color"] = color
+    return alt.Chart(data).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(**enc)
+
+
+def histogram_frame(values, bins=35):
+    values = pd.Series(values).dropna().astype(float)
+    if values.empty:
+        return pd.DataFrame(columns=["From", "To", "Midpoint", "Count", "Range"])
+    counts, edges = np.histogram(values, bins=bins)
+    return pd.DataFrame({
+        "From": edges[:-1], "To": edges[1:],
+        "Midpoint": (edges[:-1] + edges[1:]) / 2,
+        "Count": counts,
+        "Range": [f"{a:.0f}-{b:.0f}" for a, b in zip(edges[:-1], edges[1:])],
+    })
+
+
+@st.cache_data(show_spinner=False)
+def get_split_prevalence():
+    from src.common import prepare_data
+    _, _, y_dev, y_test, labels = prepare_data(DATA_DIR, verbose=False)
+    rows = []
+    for split, values in [("Development (80%)", y_dev), ("Final test (20%)", y_test)]:
+        for label in labels:
+            rows.append({"Split": split, "Label": pretty(label),
+                         "Prevalence": float(values[label].mean())})
+    return pd.DataFrame(rows)
+
+
+def load_per_label_results():
+    frames = []
+    slugs = {
+        "Logistic Regression": "logistic_regression",
+        "Linear SVM": "linear_svm",
+        "Random Forest": "random_forest",
+    }
+    for model, slug in slugs.items():
+        path = RESULTS_DIR / f"per_label_{slug}.csv"
+        if path.exists():
+            part = pd.read_csv(path)
+            part["Model"] = model
+            part["Label"] = part["label"].map(pretty)
+            frames.append(part)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def load_threshold_results():
+    frames = []
+    slugs = {
+        "Logistic Regression": "logistic_regression",
+        "Linear SVM": "linear_svm",
+        "Random Forest": "random_forest",
+    }
+    for model, slug in slugs.items():
+        path = RESULTS_DIR / f"threshold_evidence_{slug}.csv"
+        if path.exists():
+            part = pd.read_csv(path)
+            part["Model"] = model
+            part["Label"] = part["label"].map(pretty)
+            frames.append(part)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def quality_summary(raw):
@@ -265,11 +342,33 @@ def result_card(res, model_name, elapsed, original_text):
         for l in res["flagged"]:
             st.markdown(f"- **{pretty(l)}** — {res['probs'][l]:.1%} predicted probability")
 
-    st.write("**Predicted probability by output:**")
-    for l in LABELS:
-        p = res["probs"].get(l, 0.0)
-        st.write(f"{pretty(l)} — {p:.1%}")
-        st.progress(min(max(p, 0.0), 1.0))
+    probability_rows = pd.DataFrame([{
+        "Output": pretty(l),
+        "Probability": float(res["probs"].get(l, 0.0)),
+        "Threshold": float(res["thresholds"].get(l, 0.5)),
+        "Prediction": "YES" if res["probs"].get(l, 0.0) >= res["thresholds"].get(l, 0.5) else "NO",
+    } for l in LABELS])
+    output_order = probability_rows.sort_values(
+        "Probability", ascending=False)["Output"].tolist()
+    bars = alt.Chart(probability_rows).mark_bar(cornerRadiusEnd=5).encode(
+        x=alt.X("Probability:Q", scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%")),
+        y=alt.Y("Output:N", sort=output_order, title=None),
+        color=alt.Color("Prediction:N", scale=alt.Scale(
+            domain=["YES", "NO"], range=["#dc2626", "#16a34a"])),
+        tooltip=["Output", "Prediction", alt.Tooltip("Probability:Q", format=".1%"),
+                 alt.Tooltip("Threshold:Q", format=".2f")],
+    )
+    threshold_ticks = alt.Chart(probability_rows).mark_tick(
+        color="#111827", thickness=2, size=22).encode(
+        x="Threshold:Q", y=alt.Y("Output:N", sort=output_order),
+        tooltip=["Output", alt.Tooltip("Threshold:Q", format=".2f")],
+    )
+    compact_chart(
+        "Interactive probability profile",
+        bars + threshold_ticks,
+        "Hover over a bar to inspect its probability and saved threshold. The dark tick marks the threshold for that output; only the Harmful Content output controls the final verdict.",
+        height=280,
+    )
 
     if res["words"]:
         st.write("**Strongest contributing words highlighted:**")
@@ -289,12 +388,15 @@ def result_card(res, model_name, elapsed, original_text):
 def summary_charts(df, bundle=None):
     c1, c2 = st.columns(2)
     with c1:
-        counts = df["Harmful content"].value_counts()
-        fig, ax = plt.subplots(figsize=(4, 4))
-        ax.pie(counts.values, labels=counts.index, autopct="%1.1f%%",
-               colors=["#c0392b" if i == "YES" else "#27ae60" for i in counts.index])
-        ax.set_title("Harmful Content vs Clean")
-        st.pyplot(fig); plt.close(fig)
+        counts = df["Harmful content"].value_counts().rename_axis("Result").reset_index(name="Count")
+        counts["Percentage"] = counts["Count"] / counts["Count"].sum()
+        donut = alt.Chart(counts).mark_arc(innerRadius=58, outerRadius=102).encode(
+            theta=alt.Theta("Count:Q"),
+            color=alt.Color("Result:N", scale=alt.Scale(
+                domain=["YES", "NO"], range=["#dc2626", "#16a34a"])),
+            tooltip=["Result", "Count", alt.Tooltip("Percentage:Q", format=".1%")],
+        ).properties(height=285, title="Harmful Content vs Clean")
+        st.altair_chart(donut, use_container_width=True)
     with c2:
         cat_cols = [pretty(l) for l in LABELS]
         if bundle is not None:
@@ -305,10 +407,14 @@ def summary_charts(df, bundle=None):
             })
         else:
             flags = (df[cat_cols] >= 0.5).sum()
-        fig, ax = plt.subplots(figsize=(5, 4))
-        flags.plot(kind="barh", ax=ax, color="#c0392b")
-        ax.set_title("Detections per category")
-        st.pyplot(fig); plt.close(fig)
+        flag_df = flags.rename_axis("Category").reset_index(name="Detections")
+        chart = interactive_bar(
+            flag_df, "Detections", "Category", horizontal=True, sort="-x",
+            tooltip=["Category", "Detections"], x_title="Number of detections",
+            y_title=None,
+        ).encode(color=alt.value("#7c3aed")).properties(
+            height=285, title="Detections per category")
+        st.altair_chart(chart, use_container_width=True)
 
 
 def page_controls(show_model=True, key_prefix=""):
@@ -350,7 +456,7 @@ def detect_quality_issues(df, text_col):
 
 def render_workflow_diagram():
     stages = ["Raw Text", "Text Cleaning", "Tokenization", "Stopword\nRemoval",
-              "Lemmatization", "Feature\nExtraction\n(TF-IDF)", "Classification",
+              "Token\nNormalisation", "Feature\nExtraction\n(TF-IDF)", "Classification",
               "Prediction"]
     # Uses a semi-transparent grey overlay (rgba) instead of a hardcoded light
     # background - a solid light background with inherited (theme) text color
@@ -366,26 +472,6 @@ def render_workflow_diagram():
         for i, s in enumerate(stages)
     )
     st.markdown(f"<div style='line-height:2.6'>{boxes}</div>", unsafe_allow_html=True)
-
-
-def render_wordcloud(text_series):
-    """Render a word cloud image; falls back to a note if the wordcloud
-    package isn't installed (pip install wordcloud)."""
-    try:
-        from wordcloud import WordCloud
-    except ImportError:
-        st.info("Install the `wordcloud` package to see this visualization: "
-               "`pip install wordcloud` (already listed in requirements.txt). "
-               "Showing the frequent-words bar chart below instead.")
-        return False
-    text = " ".join(text_series.astype(str))
-    wc = WordCloud(width=900, height=350, background_color="white",
-                   colormap="Reds", max_words=100).generate(text)
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.imshow(wc, interpolation="bilinear")
-    ax.axis("off")
-    st.pyplot(fig); plt.close(fig)
-    return True
 
 
 # ============================================================== top navbar
@@ -420,34 +506,47 @@ page = st.session_state.page
 
 # ============================================================== Home
 if page == "Home":
-    st.title("🛡️ HarmShield")
-    st.caption("Multi-model NLP system for hate and offensive content detection")
-
-    st.markdown("### Project Introduction")
-    st.write("""
-Hate and offensive content can be produced at a scale that makes manual review
-difficult. HarmShield uses Natural Language Processing (NLP) to prioritise
-potentially harmful posts for human review and to identify the communities that
-the language appears to target.
-""")
-
-    st.markdown("### Project Objectives")
     st.markdown("""
-1. Detect whether a given comment contains hate or offensive content.
-2. Identify **which group is targeted** (race, religion, gender, etc.), not just yes/no.
-3. Implement and fairly **compare three different NLP models** on the same data.
-4. Evaluate model performance using standard classification metrics.
-5. Provide an explanation and a suggested next step for every prediction.
-""")
+<div class="hs-hero">
+  <div class="hs-eyebrow">Responsible AI for safer online conversations</div>
+  <h1>Understand harmful language.<br>Review it with context.</h1>
+  <p>HarmShield is an interactive NLP prototype that compares three classical
+  machine-learning models, detects hate or offensive content, and presents
+  possible target communities without treating a prediction as a final human judgement.</p>
+  <span class="hs-chip">6 multilabel outputs</span>
+  <span class="hs-chip">3 trained models</span>
+  <span class="hs-chip">5-fold validation</span>
+  <span class="hs-chip">Interactive evidence</span>
+</div>
+""", unsafe_allow_html=True)
 
-    st.markdown("### NLP Task")
-    st.write("""
-HarmShield uses **multi-output text classification**. The primary output states
-whether a post is harmful. Five secondary outputs identify possible target
-communities. A target-community score never creates a harmful verdict by itself.
-**Input:** raw text. **Output:** a harmful-content probability and supporting
-target-community probabilities.
-""")
+    try:
+        df, text_col, labels = get_dataset()
+        scores_home = pd.read_csv(SCORES_CSV) if os.path.exists(SCORES_CSV) else pd.DataFrame()
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Dataset records", f"{len(df):,}")
+        c2.metric("Prediction outputs", len(labels))
+        c3.metric("Available models", len(MODELS))
+        if not scores_home.empty and "harmful_f1" in scores_home:
+            c4.metric("Best harmful F1", f"{scores_home['harmful_f1'].max():.3f}")
+        else:
+            c4.metric("Validation", "5-fold")
+    except Exception as e:
+        st.warning(f"Project summary unavailable: {e}")
+
+    st.markdown("### What the system does")
+    a, b, c = st.columns(3)
+    with a:
+        st.markdown("#### ① Detect")
+        st.write("Classifies a comment as harmful or clean using the model's saved abusive threshold.")
+    with b:
+        st.markdown("#### ② Add context")
+        st.write("Shows Race, Religion, Gender, Sexual Orientation and Miscellaneous target probabilities separately.")
+    with c:
+        st.markdown("#### ③ Explain")
+        st.write("Presents probabilities, influential terms and suggested review actions in a transparent interface.")
+
+    st.info("**Decision rule:** only the Abusive output determines the final YES/NO result. Target-group outputs provide context and never create a harmful verdict by themselves.")
 
     st.markdown("### Implemented NLP Models")
     for name, info in MODEL_INFO.items():
@@ -456,18 +555,7 @@ target-community probabilities.
         st.markdown(f"**{name}** — {info['algorithm_type']}. "
                     f"Feature extraction: {info['feature_method']}. {info['note']}")
 
-    st.markdown("### Dataset Summary")
-    try:
-        df, text_col, labels = get_dataset()
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total records", f"{len(df):,}")
-        c2.metric("Classes / categories", len(labels))
-        c3.metric("Source", "HateXplain (Kaggle)")
-        st.caption("See the **Dataset Statistics** page for the full breakdown.")
-    except Exception as e:
-        st.warning(f"Dataset summary unavailable: {e}")
-
-    st.markdown("### Explore")
+    st.markdown("### Explore the project")
     nc = st.columns(4)
     targets = ["Dataset Statistics", "Data Preprocessing", "Content Detection", "Model Evaluation"]
     descs = ["See the data behind the models", "See how raw text becomes model input",
@@ -531,29 +619,45 @@ elif page == "Dataset Statistics":
 
         st.markdown("### Class Distribution (Abusive vs Clean)")
         c1, c2 = st.columns(2)
+        counts = df["abusive"].value_counts().rename({0: "Clean", 1: "Abusive"})
+        count_df = counts.rename_axis("Class").reset_index(name="Count")
+        count_df["Percentage"] = count_df["Count"] / count_df["Count"].sum()
         with c1:
-            counts = df["abusive"].value_counts().rename({0: "Clean", 1: "Abusive"})
-            fig, ax = plt.subplots(figsize=(4, 4))
-            ax.pie(counts.values, labels=counts.index, autopct="%1.1f%%",
-                   colors=["#27ae60", "#c0392b"])
-            st.pyplot(fig); plt.close(fig)
+            donut = alt.Chart(count_df).mark_arc(innerRadius=55).encode(
+                theta="Count:Q",
+                color=alt.Color("Class:N", scale=alt.Scale(
+                    domain=["Clean", "Abusive"], range=["#16a34a", "#dc2626"])),
+                tooltip=["Class", "Count", alt.Tooltip("Percentage:Q", format=".1%")],
+            ).properties(height=280)
+            st.altair_chart(donut, use_container_width=True)
         with c2:
-            fig, ax = plt.subplots(figsize=(4.5, 4))
-            counts.plot(kind="bar", ax=ax, color=["#27ae60", "#c0392b"])
-            ax.set_ylabel("Count")
-            st.pyplot(fig); plt.close(fig)
+            class_bar = interactive_bar(
+                count_df, "Class", "Count",
+                color=alt.Color("Class:N", legend=None, scale=alt.Scale(
+                    domain=["Clean", "Abusive"], range=["#16a34a", "#dc2626"])),
+                tooltip=["Class", "Count", alt.Tooltip("Percentage:Q", format=".1%")],
+                sort=["Clean", "Abusive"], x_title=None, y_title="Comments",
+            ).properties(height=280)
+            st.altair_chart(class_bar, use_container_width=True)
 
         st.markdown("### Offensive Category Distribution")
         cat_counts = df[labels].sum().sort_values(ascending=False)
         cat_counts.index = [pretty(i) for i in cat_counts.index]
-        st.bar_chart(cat_counts)
+        cat_df = cat_counts.rename_axis("Category").reset_index(name="Count")
+        st.altair_chart(interactive_bar(
+            cat_df, "Count", "Category", horizontal=True, sort="-x",
+            tooltip=["Category", "Count"], x_title="Positive records",
+        ).encode(color=alt.value("#7c3aed")).properties(height=285),
+            use_container_width=True)
 
         st.markdown("### Sentence Length Distribution")
-        fig, ax = plt.subplots(figsize=(8, 3.5))
-        ax.hist(lengths, bins=50, color="#2980b9")
-        ax.set_xlim(0, lengths.quantile(0.99))
-        ax.set_xlabel("Words per comment")
-        st.pyplot(fig); plt.close(fig)
+        visible_lengths = lengths[lengths <= lengths.quantile(0.99)]
+        length_hist = histogram_frame(visible_lengths, bins=42)
+        st.altair_chart(alt.Chart(length_hist).mark_bar(color="#2563eb").encode(
+            x=alt.X("From:Q", bin="binned", title="Words per comment"),
+            x2="To:Q", y=alt.Y("Count:Q", title="Comments"),
+            tooltip=["Range", "Count"],
+        ).properties(height=280), use_container_width=True)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Min", int(lengths.min()))
         c2.metric("Median", int(lengths.median()))
@@ -565,7 +669,12 @@ elif page == "Dataset Statistics":
         sample_for_cloud = df[text_col].sample(min(4000, len(df)), random_state=42).apply(clean_text)
         words = Counter(" ".join(sample_for_cloud).split())
         top = pd.Series(dict(words.most_common(25)))
-        st.bar_chart(top)
+        top_df = top.rename_axis("Word").reset_index(name="Frequency")
+        st.altair_chart(interactive_bar(
+            top_df, "Frequency", "Word", horizontal=True, sort="-x",
+            tooltip=["Word", "Frequency"], x_title="Frequency",
+        ).encode(color=alt.value("#ea580c")).properties(height=460),
+            use_container_width=True)
 
         st.markdown("### Label Distribution Summary")
         dist = pd.DataFrame({
@@ -580,10 +689,108 @@ elif page == "Dataset Statistics":
         render_workflow_diagram()
 
     with eda_tab:
-        st.markdown("### Generated EDA Charts")
-        st.caption("These figures are generated by `run_eda.py` and loaded from the `results/` directory; the app does not retrain or regenerate the dataset analysis at startup.")
-        for filename, caption in EDA_IMAGES:
-            show_saved_image(filename, caption)
+        st.markdown("### Interactive Exploratory Data Analysis")
+        st.markdown("<div class='hs-section-note'>Hover over the charts to inspect exact values. Use the chart controls to pan, zoom or save a view where available. These charts are calculated from the loaded dataset and do not retrain any model.</div>", unsafe_allow_html=True)
+
+        if "label" in raw.columns:
+            original = raw["label"].fillna("Unknown").astype(str).str.title().value_counts()
+            original_df = original.rename_axis("Original class").reset_index(name="Count")
+            original_df["Percentage"] = original_df["Count"] / original_df["Count"].sum()
+            chart = interactive_bar(
+                original_df, "Original class", "Count",
+                color=alt.Color("Original class:N", legend=None),
+                tooltip=["Original class", "Count", alt.Tooltip("Percentage:Q", format=".1%")],
+                sort="-y", x_title=None, y_title="Comments",
+            )
+            compact_chart("Original class distribution", chart,
+                          "This chart shows the source dataset's Normal, Offensive and Hatespeech classes before they are combined into the binary Abusive output.")
+
+        label_counts = pd.DataFrame({
+            "Label": [pretty(l) for l in labels],
+            "Positive records": [int(df[l].sum()) for l in labels],
+        })
+        chart = interactive_bar(label_counts, "Positive records", "Label", horizontal=True,
+                                sort="-x", tooltip=["Label", "Positive records"])
+        compact_chart("Positive records by output", chart.encode(color=alt.value("#7c3aed")),
+                      "The Abusive output is the primary harmful-content label. The remaining bars show how often each target community is annotated.")
+
+        length_hist = histogram_frame(lengths[lengths <= lengths.quantile(.99)], bins=40)
+        chart = alt.Chart(length_hist).mark_bar(color="#2563eb").encode(
+            x=alt.X("From:Q", bin="binned", title="Words per comment"), x2="To:Q",
+            y=alt.Y("Count:Q", title="Comments"), tooltip=["Range", "Count"])
+        compact_chart("Text-length distribution", chart,
+                      "Most records are short social-media comments. The display is limited to the 99th percentile so a small number of very long records do not compress the main distribution.")
+
+        corr = df[labels].corr()
+        corr_long = corr.rename(index=pretty, columns=pretty).stack().reset_index()
+        corr_long.columns = ["Label A", "Label B", "Correlation"]
+        chart = alt.Chart(corr_long).mark_rect().encode(
+            x=alt.X("Label A:N", title=None), y=alt.Y("Label B:N", title=None),
+            color=alt.Color("Correlation:Q", scale=alt.Scale(scheme="redblue", domain=[-1, 1])),
+            tooltip=["Label A", "Label B", alt.Tooltip("Correlation:Q", format=".2f")])
+        compact_chart("Label correlation", chart,
+                      "Correlation indicates how frequently two binary outputs vary together. A positive relationship does not mean that one label causes the other.", height=360)
+
+        output_counts = df[labels].sum(axis=1).value_counts().sort_index()
+        output_df = output_counts.rename_axis("Positive outputs").reset_index(name="Comments")
+        chart = interactive_bar(output_df, "Positive outputs", "Comments",
+                                tooltip=["Positive outputs", "Comments"], sort=None)
+        compact_chart("Positive outputs per comment", chart.encode(color=alt.value("#059669")),
+                      "This shows the multilabel nature of the task. A record can be Abusive and contain one or more target-community labels at the same time.")
+
+        target_labels = [l for l in labels if l != PRIMARY_LABEL]
+        target_counts = df[target_labels].sum(axis=1).value_counts().sort_index()
+        target_df = target_counts.rename_axis("Target communities").reset_index(name="Comments")
+        chart = interactive_bar(target_df, "Target communities", "Comments",
+                                tooltip=["Target communities", "Comments"], sort=None)
+        compact_chart("Target-community count distribution", chart.encode(color=alt.value("#d97706")),
+                      "This chart excludes the Abusive output and counts only target-community annotations. A zero value can represent either benign text or general harmful language without a mapped target.")
+
+        by_status = []
+        for status, group in df.groupby("abusive"):
+            for label in target_labels:
+                by_status.append({"Abusive status": "Abusive" if status else "Clean",
+                                  "Target": pretty(label), "Positive records": int(group[label].sum())})
+        by_status_df = pd.DataFrame(by_status)
+        chart = interactive_bar(
+            by_status_df, "Target", "Positive records",
+            color=alt.Color("Abusive status:N", scale=alt.Scale(
+                domain=["Clean", "Abusive"], range=["#16a34a", "#dc2626"])),
+            tooltip=["Abusive status", "Target", "Positive records"],
+            sort=None, x_title=None, y_title="Positive records")
+        chart = chart.encode(xOffset="Abusive status:N")
+        compact_chart("Target labels by abusive status", chart,
+                      "Target annotations may appear in both harmful and normal discussions. For this reason, target predictions provide context and never determine the final YES/NO verdict by themselves.")
+
+        if "label" in raw.columns and "comment" in raw.columns:
+            sample = raw[["label", "comment"]].dropna().copy()
+            sample["Original class"] = sample["label"].astype(str).str.title()
+            sample["Words"] = sample["comment"].astype(str).str.split().str.len()
+            if len(sample) > 5000:
+                sample = sample.sample(5000, random_state=42)
+            chart = alt.Chart(sample).mark_boxplot(size=42).encode(
+                x=alt.X("Original class:N", title=None),
+                y=alt.Y("Words:Q", scale=alt.Scale(domain=[0, float(sample['Words'].quantile(.99))])),
+                color=alt.Color("Original class:N", legend=None),
+                tooltip=["Original class:N"])
+            compact_chart("Text length by original class", chart,
+                          "The box plots compare typical comment length across the original classes. The axis is capped at the 99th percentile to keep the comparison readable.")
+
+        try:
+            split_df = get_split_prevalence()
+            chart = interactive_bar(
+                split_df, "Label", "Prevalence",
+                color=alt.Color("Split:N", scale=alt.Scale(
+                    domain=["Development (80%)", "Final test (20%)"],
+                    range=["#2563eb", "#f97316"])),
+                tooltip=["Split", "Label", alt.Tooltip("Prevalence:Q", format=".1%")],
+                sort=None, x_title=None, y_title="Positive-label prevalence")
+            chart = chart.encode(xOffset="Split:N")
+            compact_chart("Development versus final-test distribution", chart,
+                          "Similar prevalence across the protected development and final-test partitions indicates that the stratified 80/20 split preserved the main label distribution.")
+        except Exception as e:
+            st.warning(f"Split-distribution chart unavailable: {e}")
+
         quality_path = RESULTS_DIR / "eda_dataset_quality.csv"
         if quality_path.exists():
             st.markdown("### Dataset Quality Summary")
@@ -629,7 +836,7 @@ elif page == "Data Preprocessing":
     st.caption("Duplicates are removed during merging (`crawler/merge_datasets.py`) "
               "and before model training.")
 
-    st.markdown("### Text Cleaning, Tokenization & Lemmatization — Live Demo")
+    st.markdown("### Text Cleaning and Tokenization — Live Demo")
     st.write("Pick a sample comment, or type your own, to see every "
             "preprocessing step applied to it in order.")
     demo_source = st.radio("Comment source", ["Pick from dataset", "Type my own"],
@@ -648,7 +855,9 @@ elif page == "Data Preprocessing":
 
     steps = clean_text_steps(demo_text)
     for step_name, step_value in steps.items():
-        st.markdown(f"**{step_name}**")
+        display_step = ("7. Normalised tokens" if step_name == "7. Lemmatization"
+                        else step_name)
+        st.markdown(f"**{display_step}**")
         st.code(step_value if step_value else "(empty)", language=None)
 
     st.markdown("### Feature Extraction (TF-IDF: word + character n-grams)")
@@ -925,7 +1134,18 @@ elif page == "Model Evaluation":
             cmp = pd.DataFrame(rows)
             st.dataframe(cmp[["Model", "Threshold used", "Prediction", "Categories",
                               "Harmful-content probability", "Time (ms)"]], use_container_width=True)
-            st.bar_chart(cmp.set_index("Model")[[pretty(l) for l in LABELS]].T)
+            probability_cmp = cmp.melt(
+                id_vars=["Model"], value_vars=[pretty(l) for l in LABELS],
+                var_name="Output", value_name="Probability")
+            compare_chart = interactive_bar(
+                probability_cmp, "Output", "Probability",
+                color=alt.Color("Model:N", sort=MODEL_ORDER,
+                                scale=alt.Scale(domain=MODEL_ORDER, range=MODEL_COLORS)),
+                tooltip=["Model", "Output", alt.Tooltip("Probability:Q", format=".1%")],
+                sort=None, x_title=None, y_title="Predicted probability")
+            compare_chart = compare_chart.encode(xOffset="Model:N")
+            compact_chart("Probability comparison by output", compare_chart,
+                          "Hover over any bar to compare the models' probability estimates for the same comment. Each model still uses its own saved decision thresholds.")
             if cmp["Prediction"].nunique() > 1:
                 st.warning("The models disagree on this comment.")
             else:
@@ -965,15 +1185,27 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
             cols = st.columns(3)
             for i, l in enumerate(labels):
                 cm = confusion_matrix(y_test.values[:, i], pred[:, i])
-                fig, ax = plt.subplots(figsize=(2.6, 2.4))
-                ax.imshow(cm, cmap="Blues")
-                for a in range(2):
-                    for b in range(2):
-                        ax.text(b, a, cm[a, b], ha="center", va="center", fontsize=9)
-                ax.set_title(pretty(l), fontsize=9)
-                ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
-                ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
-                cols[i % 3].pyplot(fig); plt.close(fig)
+                cm_df = pd.DataFrame([
+                    {"Actual": "Negative", "Predicted": "Negative", "Count": int(cm[0, 0])},
+                    {"Actual": "Negative", "Predicted": "Positive", "Count": int(cm[0, 1])},
+                    {"Actual": "Positive", "Predicted": "Negative", "Count": int(cm[1, 0])},
+                    {"Actual": "Positive", "Predicted": "Positive", "Count": int(cm[1, 1])},
+                ])
+                heat = alt.Chart(cm_df).mark_rect().encode(
+                    x=alt.X("Predicted:N", sort=["Negative", "Positive"]),
+                    y=alt.Y("Actual:N", sort=["Negative", "Positive"]),
+                    color=alt.Color("Count:Q", scale=alt.Scale(scheme="blues")),
+                    tooltip=["Actual", "Predicted", "Count"])
+                labels_chart = alt.Chart(cm_df).mark_text().encode(
+                    x=alt.X("Predicted:N", sort=["Negative", "Positive"]),
+                    y=alt.Y("Actual:N", sort=["Negative", "Positive"]),
+                    text="Count:Q",
+                    color=alt.condition(alt.datum.Count > cm_df["Count"].max() * .55,
+                                        alt.value("white"), alt.value("#111827")))
+                with cols[i % 3]:
+                    st.markdown(f"**{pretty(l)}**")
+                    st.altair_chart((heat + labels_chart).properties(height=220),
+                                    use_container_width=True)
 
             st.markdown("### Classification Report")
             report = classification_report(y_test.values, pred, target_names=labels,
@@ -987,7 +1219,17 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
                                       "train_time_sec", "predict_time_sec"],
                                      help=f"Pick which metric to chart across all {len(MODELS)} models.")
         if metric_choice in scores.columns:
-            st.bar_chart(scores.set_index("model")[metric_choice])
+            metric_df = scores[["model", metric_choice]].rename(
+                columns={"model": "Model", metric_choice: "Value"})
+            metric_chart = interactive_bar(
+                metric_df, "Model", "Value",
+                color=alt.Color("Model:N", legend=None, sort=MODEL_ORDER,
+                                scale=alt.Scale(domain=MODEL_ORDER, range=MODEL_COLORS)),
+                tooltip=["Model", alt.Tooltip("Value:Q", format=".4f")],
+                sort=MODEL_ORDER, x_title=None, y_title=metric_choice.replace("_", " ").title())
+            compact_chart(f"Interactive {metric_choice.replace('_', ' ').title()} comparison",
+                          metric_chart,
+                          "Hover over a bar for the exact saved value. Change the metric selector above to explore another comparison.")
 
         st.markdown("### Overall Evaluation Summary")
         best_acc = scores.loc[scores["accuracy"].idxmax(), "model"]
@@ -1012,7 +1254,143 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
 """)
 
     with charts_tab:
-        st.markdown("### Generated Model-Result Charts")
-        st.caption("These figures are generated from the saved evaluation evidence. Opening this tab does not retrain models or recalculate metrics.")
-        for filename, caption in RESULT_IMAGES:
-            show_saved_image(filename, caption)
+        st.markdown("### Interactive Model-Result Charts")
+        st.markdown("<div class='hs-section-note'>These charts are reconstructed from the saved final-test, per-label, threshold and OOF evidence. Hover to inspect exact values; no model is retrained when this tab is opened.</div>", unsafe_allow_html=True)
+
+        if not os.path.exists(SCORES_CSV):
+            st.warning("No saved model scores are available.")
+            st.stop()
+        scores = pd.read_csv(SCORES_CSV)
+
+        primary = scores.melt(
+            id_vars=["model"],
+            value_vars=["harmful_precision", "harmful_recall", "harmful_f1"],
+            var_name="Metric", value_name="Score").rename(columns={"model": "Model"})
+        primary["Metric"] = primary["Metric"].map({
+            "harmful_precision": "Precision", "harmful_recall": "Recall",
+            "harmful_f1": "F1"})
+        chart = interactive_bar(
+            primary, "Model", "Score", color=alt.Color("Metric:N"),
+            tooltip=["Model", "Metric", alt.Tooltip("Score:Q", format=".4f")],
+            sort=MODEL_ORDER, x_title=None, y_title="Score").encode(xOffset="Metric:N")
+        compact_chart("Primary harmful-content metrics", chart,
+                      "Precision measures the reliability of harmful predictions, recall measures harmful comments detected, and F1 balances both values.")
+
+        errors = scores.melt(
+            id_vars=["model"],
+            value_vars=["harmful_false_positive_rate", "harmful_false_negative_rate"],
+            var_name="Error", value_name="Rate").rename(columns={"model": "Model"})
+        errors["Error"] = errors["Error"].map({
+            "harmful_false_positive_rate": "False-positive rate",
+            "harmful_false_negative_rate": "False-negative rate"})
+        chart = interactive_bar(
+            errors, "Model", "Rate", color=alt.Color("Error:N"),
+            tooltip=["Model", "Error", alt.Tooltip("Rate:Q", format=".2%")],
+            sort=MODEL_ORDER, x_title=None, y_title="Error rate").encode(xOffset="Error:N")
+        compact_chart("Primary error rates", chart,
+                      "Lower is better. FPR represents benign comments incorrectly flagged, while FNR represents harmful comments that the model missed.")
+
+        per_label = load_per_label_results()
+        if not per_label.empty:
+            for metric, title, explanation in [
+                ("f1", "Per-label F1", "F1 balances precision and recall for every output and highlights categories where performance remains weaker."),
+                ("precision", "Per-label precision", "Precision shows how reliable each model's positive predictions are for every output."),
+                ("recall", "Per-label recall", "Recall shows how successfully each model retrieves the actual positive records for every output."),
+            ]:
+                heat = alt.Chart(per_label).mark_rect().encode(
+                    x=alt.X("Label:N", title=None),
+                    y=alt.Y("Model:N", sort=MODEL_ORDER, title=None),
+                    color=alt.Color(f"{metric}:Q", scale=alt.Scale(scheme="blues", domain=[0, 1])),
+                    tooltip=["Model", "Label", alt.Tooltip(f"{metric}:Q", format=".4f")])
+                text_layer = alt.Chart(per_label).mark_text().encode(
+                    x="Label:N", y=alt.Y("Model:N", sort=MODEL_ORDER),
+                    text=alt.Text(f"{metric}:Q", format=".2f"),
+                    color=alt.condition(alt.datum[metric] > .62,
+                                        alt.value("white"), alt.value("#111827")))
+                compact_chart(title, heat + text_layer, explanation, height=230)
+
+        threshold_data = load_threshold_results()
+        if not threshold_data.empty:
+            chart = interactive_bar(
+                threshold_data, "Label", "threshold",
+                color=alt.Color("Model:N", sort=MODEL_ORDER,
+                                scale=alt.Scale(domain=MODEL_ORDER, range=MODEL_COLORS)),
+                tooltip=["Model", "Label", alt.Tooltip("threshold:Q", format=".2f"), "objective"],
+                sort=None, x_title=None, y_title="Selected threshold").encode(xOffset="Model:N")
+            compact_chart("OOF-selected thresholds", chart,
+                          "Each threshold was selected using development-only out-of-fold predictions. Only the Harmful Content threshold determines the final YES/NO verdict.")
+
+        if {"oof_primary_f1", "harmful_f1"}.issubset(scores.columns):
+            oof = scores[["model", "oof_primary_f1", "harmful_f1"]].melt(
+                id_vars="model", var_name="Evaluation", value_name="F1").rename(columns={"model": "Model"})
+            oof["Evaluation"] = oof["Evaluation"].map({
+                "oof_primary_f1": "Development OOF", "harmful_f1": "Final test"})
+            chart = interactive_bar(
+                oof, "Model", "F1", color=alt.Color("Evaluation:N"),
+                tooltip=["Model", "Evaluation", alt.Tooltip("F1:Q", format=".4f")],
+                sort=MODEL_ORDER, x_title=None, y_title="Harmful-content F1").encode(xOffset="Evaluation:N")
+            compact_chart("Development OOF versus final-test F1", chart,
+                          "Similar OOF and final-test scores suggest that the selected thresholds generalise reasonably from development data to the protected test set.")
+
+        timing_cols = [c for c in ["train_time_sec", "predict_time_sec"] if c in scores.columns]
+        if timing_cols:
+            timing = scores[["model"] + timing_cols].melt(
+                id_vars="model", var_name="Stage", value_name="Seconds").rename(columns={"model": "Model"})
+            timing["Stage"] = timing["Stage"].map({
+                "train_time_sec": "Final training", "predict_time_sec": "Final-test prediction"})
+            chart = interactive_bar(
+                timing, "Model", "Seconds", color=alt.Color("Stage:N"),
+                tooltip=["Model", "Stage", alt.Tooltip("Seconds:Q", format=".4f")],
+                sort=MODEL_ORDER, x_title=None, y_title="Seconds").encode(xOffset="Stage:N")
+            compact_chart("Model timing", chart,
+                          "Timing values describe this experimental run and depend on hardware and software conditions; prediction is much faster than training.")
+
+        required_cm = {"harmful_tn", "harmful_fp", "harmful_fn", "harmful_tp"}
+        if required_cm.issubset(scores.columns):
+            rows = []
+            for _, row in scores.iterrows():
+                for actual, predicted, col in [
+                    ("Negative", "Negative", "harmful_tn"),
+                    ("Negative", "Positive", "harmful_fp"),
+                    ("Positive", "Negative", "harmful_fn"),
+                    ("Positive", "Positive", "harmful_tp")]:
+                    rows.append({"Model": row["model"], "Actual": actual,
+                                 "Predicted": predicted, "Count": int(row[col])})
+            cm_data = pd.DataFrame(rows)
+            heat = alt.Chart(cm_data).mark_rect().encode(
+                x=alt.X("Predicted:N", sort=["Negative", "Positive"]),
+                y=alt.Y("Actual:N", sort=["Negative", "Positive"]),
+                color=alt.Color("Count:Q", scale=alt.Scale(scheme="blues")),
+                tooltip=["Model", "Actual", "Predicted", "Count"],
+            ).facet(
+                facet=alt.Facet("Model:N", sort=MODEL_ORDER, title=None),
+                columns=3,
+            )
+            compact_chart("Primary confusion matrices", heat,
+                          "Hover over a cell to inspect true negatives, false positives, false negatives and true positives for each model.", height=250)
+
+        if not per_label.empty and {"tn", "fp", "fn", "tp"}.issubset(per_label.columns):
+            rows = []
+            for _, row in per_label.iterrows():
+                for actual, predicted, col in [
+                    ("Negative", "Negative", "tn"), ("Negative", "Positive", "fp"),
+                    ("Positive", "Negative", "fn"), ("Positive", "Positive", "tp")]:
+                    rows.append({"Model": row["Model"], "Label": row["Label"],
+                                 "Actual": actual, "Predicted": predicted,
+                                 "Count": int(row[col])})
+            multi_cm = pd.DataFrame(rows)
+            selected_cm_model = st.selectbox(
+                "Model for six-label confusion matrices", MODEL_ORDER,
+                key="interactive_cm_model")
+            selected = multi_cm[multi_cm["Model"] == selected_cm_model]
+            heat = alt.Chart(selected).mark_rect().encode(
+                x=alt.X("Predicted:N", sort=["Negative", "Positive"]),
+                y=alt.Y("Actual:N", sort=["Negative", "Positive"]),
+                color=alt.Color("Count:Q", scale=alt.Scale(scheme="blues")),
+                tooltip=["Model", "Label", "Actual", "Predicted", "Count"],
+            ).facet(
+                facet=alt.Facet("Label:N", title=None),
+                columns=3,
+            )
+            compact_chart("Six-label confusion matrices", heat,
+                          "Choose a model, then hover over each cell to inspect its label-level classification outcomes.", height=470)
