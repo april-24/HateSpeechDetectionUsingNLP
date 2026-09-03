@@ -95,11 +95,19 @@ div[data-testid="stHorizontalBlock"] div.stButton > button p {
 .hs-chip { display:inline-block; margin:.25rem .35rem .1rem 0; padding:.36rem .68rem; border-radius:999px; background:rgba(128,128,128,.13); font-size:.82rem; }
 .hs-section-note { opacity:.78; line-height:1.55; margin:-.25rem 0 1rem 0; }
 .hs-chart-note { opacity:.78; line-height:1.55; margin:.35rem 0 .25rem 0; }
+.hs-section-note { opacity:.78; line-height:1.6; margin:-.25rem 0 1.5rem 0; }
+.hs-chart-note {
+    opacity:.80;
+    line-height:1.65;
+    margin:.55rem 0 1.25rem 0;
+    padding:0 .15rem;
+}
 div[data-testid="stVerticalBlockBorderWrapper"] {
     border-color: rgba(128,128,128,.30) !important;
     border-radius: 16px !important;
     box-shadow: 0 5px 18px rgba(0,0,0,.06);
     margin-bottom: 1.1rem;
+    margin-bottom: 1.45rem;
 }
 </style>
 """
@@ -159,6 +167,19 @@ def compact_chart(title, chart, explanation, height=310):
                 .configure_axisX(labelAngle=0, labelLimit=180)
                 .configure_axisY(labelLimit=240))
             st.altair_chart(rendered_chart, use_container_width=True)
+            st.markdown(
+                f"<div class='hs-chart-note'>{explanation}</div>",
+                unsafe_allow_html=True,
+            )
+
+
+def compact_image(title, image_path, explanation, caption=None):
+    """Render a saved chart in the same bordered-card layout."""
+    with st.container(border=True):
+        st.markdown(f"#### {title}")
+        left, centre, right = st.columns([0.4, 9.2, 0.4])
+        with centre:
+            st.image(str(image_path), use_container_width=True, caption=caption)
             st.markdown(
                 f"<div class='hs-chart-note'>{explanation}</div>",
                 unsafe_allow_html=True,
@@ -725,6 +746,7 @@ elif page == "Dataset Statistics":
             )
             compact_chart("Original class distribution", chart,
                           "This chart shows the source dataset's Normal, Offensive and Hatespeech classes before they are combined into the binary Abusive output.")
+                          "This chart shows the source dataset's Normal, Offensive and Hatespeech classes before they are combined into the binary Abusive output. Comparing the bar heights also reveals the original class balance and helps explain why stratified data splitting is important during model evaluation.")
 
         label_counts = pd.DataFrame({
             "Label": [pretty(l) for l in labels],
@@ -734,6 +756,7 @@ elif page == "Dataset Statistics":
                                 sort="-x", tooltip=["Label", "Positive records"])
         compact_chart("Positive records by output", chart.encode(color=alt.value("#7c3aed")),
                       "The Abusive output is the primary harmful-content label. The remaining bars show how often each target community is annotated.")
+                      "The Abusive output is the primary harmful-content label, while the remaining bars show how often each target community is annotated. The lower counts for several target labels indicate label imbalance, which can make those categories more difficult for the models to learn reliably.")
 
         length_hist = histogram_frame(lengths[lengths <= lengths.quantile(.99)], bins=40)
         chart = alt.Chart(length_hist).mark_bar(color="#2563eb").encode(
@@ -741,6 +764,7 @@ elif page == "Dataset Statistics":
             y=alt.Y("Count:Q", title="Comments"), tooltip=["Range", "Count"])
         compact_chart("Text-length distribution", chart,
                       "Most records are short social-media comments. The display is limited to the 99th percentile so a small number of very long records do not compress the main distribution.")
+                      "Most records are short social-media comments, so the models mainly learn from brief and informal language. The display is limited to the 99th percentile so a small number of unusually long records do not compress the main pattern or make the chart difficult to interpret.")
 
         corr = df[labels].corr()
         corr_long = corr.rename(index=pretty, columns=pretty).stack().reset_index()
@@ -751,6 +775,7 @@ elif page == "Dataset Statistics":
             tooltip=["Label A", "Label B", alt.Tooltip("Correlation:Q", format=".2f")])
         compact_chart("Label correlation", chart,
                       "Correlation indicates how frequently two binary outputs vary together. A positive relationship does not mean that one label causes the other.", height=360)
+                      "Correlation indicates how frequently two binary outputs vary together across the dataset. Stronger positive values suggest that two labels are commonly assigned to the same comments, but this relationship is an association only and does not mean that one label causes the other.", height=360)
 
         output_counts = df[labels].sum(axis=1).value_counts().sort_index()
         output_df = output_counts.rename_axis("Positive outputs").reset_index(name="Comments")
@@ -758,6 +783,7 @@ elif page == "Dataset Statistics":
                                 tooltip=["Positive outputs", "Comments"], sort=None)
         compact_chart("Positive outputs per comment", chart.encode(color=alt.value("#059669")),
                       "This shows the multilabel nature of the task. A record can be Abusive and contain one or more target-community labels at the same time.")
+                      "This chart demonstrates the multilabel nature of the task because one comment can receive several positive outputs simultaneously. For example, a record may be marked as Abusive and also refer to one or more target communities, so the output categories are not mutually exclusive.")
 
         target_labels = [l for l in labels if l != PRIMARY_LABEL]
         target_counts = df[target_labels].sum(axis=1).value_counts().sort_index()
@@ -766,6 +792,7 @@ elif page == "Dataset Statistics":
                                 tooltip=["Target communities", "Comments"], sort=None)
         compact_chart("Target-community count distribution", chart.encode(color=alt.value("#d97706")),
                       "This chart excludes the Abusive output and counts only target-community annotations. A zero value can represent either benign text or general harmful language without a mapped target.")
+                      "This chart excludes the Abusive output and counts only the five target-community annotations assigned to each comment. A zero value can therefore represent either benign text or general harmful language without a mapped community, while higher values indicate that several groups are referenced together.")
 
         by_status = []
         for status, group in df.groupby("abusive"):
@@ -782,6 +809,7 @@ elif page == "Dataset Statistics":
         chart = chart.encode(xOffset="Abusive status:N")
         compact_chart("Target labels by abusive status", chart,
                       "Target annotations may appear in both harmful and normal discussions. For this reason, target predictions provide context and never determine the final YES/NO verdict by themselves.")
+                      "Target annotations may appear in both harmful and normal discussions because mentioning a community does not automatically make a comment abusive. Therefore, these target predictions provide supporting context only and never determine the system's final YES/NO harmful-content verdict by themselves.")
 
         if "label" in raw.columns and "comment" in raw.columns:
             sample = raw[["label", "comment"]].dropna().copy()
@@ -796,6 +824,7 @@ elif page == "Dataset Statistics":
                 tooltip=["Original class:N"])
             compact_chart("Text length by original class", chart,
                           "The box plots compare typical comment length across the original classes. The axis is capped at the 99th percentile to keep the comparison readable.")
+                          "The box plots compare the median, spread and typical comment length across the original Normal, Offensive and Hatespeech classes. The vertical axis is capped at the 99th percentile so extreme comments do not hide meaningful differences among the three main distributions.")
 
         try:
             split_df = get_split_prevalence()
@@ -809,6 +838,7 @@ elif page == "Dataset Statistics":
             chart = chart.encode(xOffset="Split:N")
             compact_chart("Development versus final-test distribution", chart,
                           "Similar prevalence across the protected development and final-test partitions indicates that the stratified 80/20 split preserved the main label distribution.")
+                          "This chart compares positive-label prevalence between the 80% development partition and the untouched 20% final-test partition. Similar percentages across both groups indicate that iterative stratification preserved the main multilabel distribution and produced a fairer basis for final evaluation.")
         except Exception as e:
             st.warning(f"Split-distribution chart unavailable: {e}")
 
@@ -1167,6 +1197,7 @@ elif page == "Model Evaluation":
             compare_chart = compare_chart.encode(xOffset="Model:N")
             compact_chart("Probability comparison by output", compare_chart,
                           "Hover over any bar to compare the models' probability estimates for the same comment. Each model still uses its own saved decision thresholds.")
+                          "Hover over any bar to inspect the exact probability produced by each model for the same comment and output label. Differences between the grouped bars show where the models agree confidently and where their learned patterns produce different levels of certainty; each model still uses its own saved thresholds.")
             if cmp["Prediction"].nunique() > 1:
                 st.warning("The models disagree on this comment.")
             else:
@@ -1197,6 +1228,9 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
         st.caption("Computed live on the test set for the model selected above.")
         if st.button("Compute confusion matrices & classification report"):
             from sklearn.metrics import confusion_matrix, classification_report
+        st.caption("Displays the saved final-test confusion-matrix figure; the classification report is computed for the model selected above.")
+        if st.button("Show confusion matrices & compute classification report"):
+            from sklearn.metrics import classification_report
             from src.common import prepare_data
             bundle = get_model(MODELS[st.session_state.sel_model])
             with st.spinner("Running the model over the test set..."):
@@ -1227,6 +1261,16 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
                     st.markdown(f"**{pretty(l)}**")
                     st.altair_chart((heat + labels_chart).properties(height=220),
                                     use_container_width=True)
+            saved_cm = RESULTS_DIR / "confusion_matrices_multilabel_final_test.png"
+            if saved_cm.exists():
+                compact_image(
+                    "Six-label confusion matrices",
+                    saved_cm,
+                    "Each 2×2 matrix separates correct negative and positive predictions from false alarms and missed positive cases. The rows compare Logistic Regression, Linear SVM and Random Forest across all six outputs, making label-level strengths and weaknesses easier to inspect consistently.",
+                    "Saved final-test confusion matrices for all three trained models.",
+                )
+            else:
+                st.warning("Saved confusion-matrix image is unavailable. Run the result-generation script to recreate it.")
 
             st.markdown("### Classification Report")
             report = classification_report(y_test.values, pred, target_names=labels,
@@ -1251,6 +1295,7 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
             compact_chart(f"Interactive {metric_choice.replace('_', ' ').title()} comparison",
                           metric_chart,
                           "Hover over a bar for the exact saved value. Change the metric selector above to explore another comparison.")
+                          "Hover over each bar to view the exact saved value for that model. Change the selector above to compare predictive quality or efficiency from different perspectives, since the model with the highest score may not necessarily be the fastest one to train or use.")
 
         st.markdown("### Overall Evaluation Summary")
         best_acc = scores.loc[scores["accuracy"].idxmax(), "model"]
@@ -1296,6 +1341,7 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
             sort=MODEL_ORDER, x_title=None, y_title="Score").encode(xOffset="Metric:N")
         compact_chart("Primary harmful-content metrics", chart,
                       "Precision measures the reliability of harmful predictions, recall measures harmful comments detected, and F1 balances both values.")
+                      "Precision measures how reliable the harmful predictions are, while recall measures how many genuinely harmful comments are successfully detected. F1 combines both measures into one balanced score, making it useful when false alarms and missed harmful comments are both important.")
 
         errors = scores.melt(
             id_vars=["model"],
@@ -1310,6 +1356,7 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
             sort=MODEL_ORDER, x_title=None, y_title="Error rate").encode(xOffset="Error:N")
         compact_chart("Primary error rates", chart,
                       "Lower is better. FPR represents benign comments incorrectly flagged, while FNR represents harmful comments that the model missed.")
+                      "Lower values are better for both error rates. The false-positive rate represents benign comments incorrectly flagged as harmful, whereas the false-negative rate represents harmful comments missed by the system and therefore left undetected.")
 
         per_label = load_per_label_results()
         if not per_label.empty:
@@ -1317,6 +1364,9 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
                 ("f1", "Per-label F1", "F1 balances precision and recall for every output and highlights categories where performance remains weaker."),
                 ("precision", "Per-label precision", "Precision shows how reliable each model's positive predictions are for every output."),
                 ("recall", "Per-label recall", "Recall shows how successfully each model retrieves the actual positive records for every output."),
+                ("f1", "Per-label F1", "F1 balances precision and recall separately for every output label. Comparing the cells reveals whether a strong overall result is consistent across categories or hides weaker performance for less frequent target communities."),
+                ("precision", "Per-label precision", "Precision shows how often each model's positive prediction is correct for every output label. Lower cells identify categories that produce more false alarms and may require better features or more representative training examples."),
+                ("recall", "Per-label recall", "Recall shows how successfully each model retrieves the actual positive records for every output label. Lower cells identify categories where harmful or targeted examples are more likely to be missed despite acceptable overall performance."),
             ]:
                 heat = alt.Chart(per_label).mark_rect().encode(
                     x=alt.X("Label:N", title=None),
@@ -1340,6 +1390,7 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
                 sort=None, x_title=None, y_title="Selected threshold").encode(xOffset="Model:N")
             compact_chart("OOF-selected thresholds", chart,
                           "Each threshold was selected using development-only out-of-fold predictions. Only the Harmful Content threshold determines the final YES/NO verdict.")
+                          "Each threshold was selected using pooled out-of-fold predictions from the development data without examining the protected final-test labels. Only the Harmful Content threshold determines the final YES/NO verdict; the other five thresholds provide target-group context.")
 
         if {"oof_primary_f1", "harmful_f1"}.issubset(scores.columns):
             oof = scores[["model", "oof_primary_f1", "harmful_f1"]].melt(
@@ -1352,6 +1403,7 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
                 sort=MODEL_ORDER, x_title=None, y_title="Harmful-content F1").encode(xOffset="Evaluation:N")
             compact_chart("Development OOF versus final-test F1", chart,
                           "Similar OOF and final-test scores suggest that the selected thresholds generalise reasonably from development data to the protected test set.")
+                          "This chart checks whether harmful-content F1 from development out-of-fold predictions remains similar on the protected final-test set. A small difference suggests reasonable generalisation, while a large reduction may indicate instability or overfitting.")
 
         timing_cols = [c for c in ["train_time_sec", "predict_time_sec"] if c in scores.columns]
         if timing_cols:
@@ -1365,6 +1417,7 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
                 sort=MODEL_ORDER, x_title=None, y_title="Seconds").encode(xOffset="Stage:N")
             compact_chart("Model timing", chart,
                           "Timing values describe this experimental run and depend on hardware and software conditions; prediction is much faster than training.")
+                          "These timing values describe the recorded experimental run and can change with hardware, software versions and dataset size. Training time reflects the cost of building each model, whereas prediction time indicates how quickly it processes the complete final-test partition.")
 
         required_cm = {"harmful_tn", "harmful_fp", "harmful_fn", "harmful_tp"}
         if required_cm.issubset(scores.columns):
@@ -1386,6 +1439,13 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
             ).facet(
                 facet=alt.Facet("Model:N", sort=MODEL_ORDER, title=None),
                 columns=3,
+        primary_cm_path = RESULTS_DIR / "primary_confusion_matrices.png"
+        if primary_cm_path.exists():
+            compact_image(
+                "Primary confusion matrices",
+                primary_cm_path,
+                "These matrices compare the three models on the primary Harmful Content decision. They show the balance between correct classifications, benign comments incorrectly flagged as harmful, and harmful comments missed by the system on the protected final-test set.",
+                "Primary Harmful Content confusion matrices from the saved final-test results.",
             )
             compact_chart("Primary confusion matrices", heat,
                           "Hover over a cell to inspect true negatives, false positives, false negatives and true positives for each model.", height=250)
@@ -1412,6 +1472,13 @@ Only `abusive` controls the final YES/NO verdict. Race, Religion, Gender, Sexual
             ).facet(
                 facet=alt.Facet("Label:N", title=None),
                 columns=3,
+        multilabel_cm_path = RESULTS_DIR / "confusion_matrices_multilabel_final_test.png"
+        if multilabel_cm_path.exists():
+            compact_image(
+                "Six-label confusion matrices",
+                multilabel_cm_path,
+                "The six columns represent Harmful Content and the five contextual target labels, while the three rows represent the trained models. Reading the matrices together reveals which labels have more false positives or false negatives and prevents overall scores from hiding weak categories.",
+                "All six output-level confusion matrices for Logistic Regression, Linear SVM and Random Forest.",
             )
             compact_chart("Six-label confusion matrices", heat,
                           "Choose a model, then hover over each cell to inspect its label-level classification outcomes.", height=470)
