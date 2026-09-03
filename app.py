@@ -56,6 +56,7 @@ MODEL_INFO = {
 # and dark themes (hardcoded dark-grey text was invisible on the dark theme).
 NAVBAR_CSS = """
 <style>
+/* Keep the custom navigation below Streamlit's fixed Share/Deploy toolbar. */
 main .block-container {
     padding-top: 5rem !important;
     padding-bottom: 3rem;
@@ -93,7 +94,13 @@ div[data-testid="stHorizontalBlock"] div.stButton > button p {
 .hs-hero p { max-width: 760px; font-size: 1.08rem; line-height: 1.65; opacity: .86; }
 .hs-chip { display:inline-block; margin:.25rem .35rem .1rem 0; padding:.36rem .68rem; border-radius:999px; background:rgba(128,128,128,.13); font-size:.82rem; }
 .hs-section-note { opacity:.78; line-height:1.55; margin:-.25rem 0 1rem 0; }
-.hs-chart-note { opacity:.78; line-height:1.55; margin:.2rem 0 1.4rem 0; }
+.hs-chart-note { opacity:.78; line-height:1.55; margin:.35rem 0 .25rem 0; }
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-color: rgba(128,128,128,.30) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 5px 18px rgba(0,0,0,.06);
+    margin-bottom: 1.1rem;
+}
 </style>
 """
 
@@ -135,23 +142,27 @@ MODEL_COLORS = ["#2563eb", "#7c3aed", "#059669"]
 
 
 def compact_chart(title, chart, explanation, height=310):
-    """Render a responsive interactive chart with comfortable side margins."""
-    st.markdown(f"#### {title}")
-    left, centre, right = st.columns([1.15, 7.7, 1.15])
-    with centre:
-        if isinstance(chart, alt.FacetChart):
-            rendered_chart = chart.copy(deep=True)
-            rendered_chart.spec = rendered_chart.spec.properties(height=height)
-        else:
-            rendered_chart = chart.properties(height=height)
-        st.altair_chart(
-            rendered_chart.configure_view(strokeWidth=0),
-            use_container_width=True,
-        )
-        st.markdown(
-            f"<div class='hs-chart-note'>{explanation}</div>",
-            unsafe_allow_html=True,
-        )
+    """Render a responsive interactive chart inside a distinct visual card."""
+    with st.container(border=True):
+        st.markdown(f"#### {title}")
+        left, centre, right = st.columns([0.65, 8.7, 0.65])
+        with centre:
+            if isinstance(chart, alt.FacetChart):
+                rendered_chart = chart.copy(deep=True)
+                rendered_chart.spec = rendered_chart.spec.properties(height=height)
+            else:
+                rendered_chart = chart.properties(height=height)
+            rendered_chart = (rendered_chart
+                .configure_view(strokeWidth=0)
+                .configure_axis(
+                    labelFontSize=12, titleFontSize=13, labelPadding=7)
+                .configure_axisX(labelAngle=0, labelLimit=180)
+                .configure_axisY(labelLimit=240))
+            st.altair_chart(rendered_chart, use_container_width=True)
+            st.markdown(
+                f"<div class='hs-chart-note'>{explanation}</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def interactive_bar(data, x, y, color=None, tooltip=None, sort=None,
@@ -162,9 +173,13 @@ def interactive_bar(data, x, y, color=None, tooltip=None, sort=None,
     }
     if horizontal:
         enc["x"] = alt.X(f"{x}:Q", title=x_title or x)
-        enc["y"] = alt.Y(f"{y}:N", title=y_title or y, sort=sort)
+        enc["y"] = alt.Y(
+            f"{y}:N", title=y_title or y, sort=sort,
+            axis=alt.Axis(labelLimit=240, labelPadding=7))
     else:
-        enc["x"] = alt.X(f"{x}:N", title=x_title or x, sort=sort)
+        enc["x"] = alt.X(
+            f"{x}:N", title=x_title or x, sort=sort,
+            axis=alt.Axis(labelAngle=0, labelLimit=180, labelPadding=8))
         enc["y"] = alt.Y(f"{y}:Q", title=y_title or y)
     if color:
         enc["color"] = color
