@@ -56,7 +56,13 @@ MODEL_INFO = {
 # and dark themes (hardcoded dark-grey text was invisible on the dark theme).
 NAVBAR_CSS = """
 <style>
-.block-container { padding-top: 1.35rem; padding-bottom: 3rem; }
+main .block-container {
+    padding-top: 5rem !important;
+    padding-bottom: 3rem;
+}
+@media (max-width: 768px) {
+    main .block-container { padding-top: 4.5rem !important; }
+}
 div[data-testid="stHorizontalBlock"] div.stButton > button {
     background: transparent !important;
     border: none !important;
