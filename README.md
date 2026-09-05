@@ -39,20 +39,6 @@ Expected cleaned split: **16,086 development + 4,022 final-test records**. Saved
 
 Logistic Regression remains the preferred/default model based mainly on final harmful-content F1 and multilabel micro-F1.
 
-## Regression Example Testing
-
-Only the three required regression examples remain as a separate prediction check. They do not belong to the training data and do not influence model selection, threshold selection, or final-test evaluation. Predictions use the real preprocessing, saved model bundle, and saved threshold.
-
-| Text | LR | SVM | RF |
-|---|---|---|---|
-| `you are a stupid idiot nobody likes you` | YES | YES | YES |
-| `Thanks for sharing, this was really useful!` | NO | NO | NO |
-| `go back to your own country you don't belong here` | YES | YES | YES |
-
-All three exact sentences are absent from `data/final_hateXplain.csv`, so they are not training rows. They are not hard-coded into `predict()`.
-
-The removed supplementary evaluation component and its generated evidence are not included in the final project. This keeps the final evaluation focused on the saved development/test methodology and the three required regression examples.
-
 ## Revised files and commands
 
 Key files:
