@@ -1,3 +1,5 @@
+Access Link: https://hatespeechdetectionusingnlp.streamlit.app/
+
 # HarmShield — Hate and Offensive Content Detection
 
 HarmShield is an educational NLP prototype for BMCS2074 Artificial Intelligence. It detects **hate and offensive content** in individual English posts and predicts five target-community annotations for context.
